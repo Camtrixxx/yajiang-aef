@@ -21,7 +21,7 @@ Thumbs.db
 *.log
 
 # Data and outputs
-data/
+/data/
 raw/
 outputs/
 checkpoints/

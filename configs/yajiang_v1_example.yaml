@@ -1,0 +1,64 @@
+experiment:
+  name: yajiang_aef_v1
+  seed: 42
+
+data:
+  image_size: 128
+  max_frames: 8
+  batch_size: 2
+  num_workers: 0
+  metadata_dim: 4
+
+  input_sources:
+    - s2
+    - s1
+    - hls
+
+  target_sources:
+    - name: dem
+      loss_type: continuous
+      out_channels: 1
+    - name: worldcover
+      loss_type: categorical
+      out_channels: 11
+    - name: jrc_water
+      loss_type: categorical
+      out_channels: 4
+
+model:
+  input_dim: 16
+  stem_dim: 64
+  precision_dim: 128
+  embedding_dim: 64
+  num_heads: 8
+  num_blocks: 2
+
+  time_code_dim: 32
+  window_code_dim: 32
+  relative_time_code_dim: 16
+  metadata_dim: 4
+
+  vmf_kappa: 20.0
+  skip_l2_norm_training: false
+  gradient_checkpointing: false
+  decoder_hidden_mult: 1
+
+  source_channels:
+    s2: 12
+    s1: 2
+    hls: 6
+
+training:
+  epochs: 3
+  lr: 1.0e-4
+  weight_decay: 0.01
+  amp: true
+  amp_dtype: bf16
+  log_interval: 5
+  grad_clip_norm: 1.0
+
+  reconstruction_weight: 1.0
+  uniformity_weight: 0.01
+  variance_weight: 0.01
+  decorrelation_weight: 0.001
+  orthogonality_weight: 0.001

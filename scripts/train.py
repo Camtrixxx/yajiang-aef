@@ -27,6 +27,12 @@ class DummyYajiangDataset(Dataset):
         self.input_sources = list(cfg.data.input_sources)
         self.target_sources = list(cfg.data.target_sources)
 
+        source_channels = getattr(cfg.model, "source_channels", {})
+        if isinstance(source_channels, dict):
+            self.source_channels = source_channels
+        else:
+            self.source_channels = vars(source_channels)
+
     def __len__(self):
         return self.length
 
@@ -34,7 +40,7 @@ class DummyYajiangDataset(Dataset):
         h = w = self.image_size
         s = len(self.input_sources)
         t = self.max_frames
-        max_in_ch = max(getattr(self.cfg.model, "source_channels", {}).values())
+        max_in_ch = max(self.source_channels.values())
 
         source_frames = torch.randn(s, t, max_in_ch, h, w)
         source_timestamps_ms = torch.randint(1_600_000_000_000, 1_700_000_000_000, (s, t))

@@ -2,54 +2,36 @@
 
 雅江场景下的多模态时空 embedding 初版训练框架。
 
-当前阶段只做一件事：**先把训练主链路跑通**。  
-项目聚焦于开源遥感数据的接入与训练，先完成一个最小可运行版本（MVP），打通：
+这个仓库当前聚焦一件事：**先把 AEF 风格的训练主链路跑通**，包括多源输入编码、时空主干、embedding bottleneck、条件解码重建，以及最小训练循环。
+
+## 当前状态
+
+目前已经完成：
 
 - 配置读取
 - manifest 构建与读取
-- dataset 输出 batch
-- model forward
-- loss 计算
-- train step
+- dataset 组 batch
+- AEF 初版模型骨架
+- reconstruction + regularization loss
+- 最小 trainer
+- dummy 数据训练链路打通
+- 真实 manifest 训练入口预留
 
-后续再逐步扩展到冰川、滑坡、水体变化、工程安全等专题任务。
+换句话说，这个仓库已经不是单纯的模型代码草稿，而是一个**可以开始做小规模真实数据联调**的初版训练工程。
 
----
-
-## 1. 当前目标
-
-当前版本的目标很明确：
-
-1. 基于雅江 AOI 的开源多模态数据构建训练样本
-2. 训练一个多模态时空 embedding 主干模型
-3. 为后续扩展更多专题任务打基础
-
-当前不追求：
-
-- 完整工程系统
-- 复杂下游任务
-- 全量数字底座
-- 一次性覆盖所有模态和标签
-
-一句话概括：
-
-**先训起来。**
-
----
-
-## 2. 当前支持的数据栈（MVP）
+## 当前支持的数据栈
 
 ### 输入源
 - Sentinel-2 L2A
 - Sentinel-1 GRD
 - HLS
 
-### 目标/辅助源
+### 目标源
 - DEM
 - ESA WorldCover
 - JRC Global Surface Water
 
-这套组合用于先搭建雅江初版训练链路，已经可以覆盖：
+当前这套组合主要用于先跑通雅江场景下的多模态训练闭环，覆盖：
 
 - 光学信息
 - SAR 信息
@@ -57,21 +39,20 @@
 - 地表覆盖信息
 - 水体信息
 
----
-
-## 3. 项目结构
+## 项目结构
 
 ```text
 yajiang-aef/
 ├── README.md
-├── .gitignore
 ├── pyproject.toml
 ├── configs/
-│   └── yajiang_v1.yaml
+│   ├── yajiang_v1.yaml
+│   └── yajiang_v1_example.yaml
 ├── scripts/
 │   ├── build_manifest.py
 │   ├── prepare_data.py
-│   └── train.py
+│   ├── train.py
+│   └── train_with_manifest.py
 ├── src/
 │   ├── __init__.py
 │   ├── config.py
@@ -93,480 +74,188 @@ yajiang-aef/
 │   │   └── trainer.py
 │   └── utils/
 │       ├── __init__.py
-│       ├── io.py
-│       └── geo.py
-├── tests/
-│   └── __init__.py
-└── outputs/
-````
+│       ├── geo.py
+│       └── io.py
+└── tests/
+当前模型包含的核心模块
+多源传感器编码器
 
----
+时间编码 / 窗口编码 / 相对时间编码
 
-## 4. 目录说明
+STP 主干
 
-### `configs/`
+vMF bottleneck
 
-训练配置文件目录。
+条件解码器
 
-### `scripts/`
+reconstruction + anti-collapse regularization
 
-脚本入口：
+当前版本的目标是先训练一个可用的时空 embedding backbone，暂时不追求复杂下游任务头。
 
-* `build_manifest.py`：根据 patch 数据生成 `train.jsonl`
-* `prepare_data.py`：后续用于数据预处理、patch 构建、统计量生成
-* `train.py`：最小训练入口
+快速开始
+1. 安装
+Bash
 
-### `src/config.py`
-
-读取 yaml 配置并转换为训练代码可用的配置对象。
-
-### `src/data/`
-
-数据读取逻辑：
-
-* `manifest.py`：读取和校验 manifest
-* `dataset.py`：根据 manifest 组装训练样本
-
-### `src/models/`
-
-模型主干：
-
-* `blocks.py`：STP block
-* `bottleneck.py`：bottleneck
-* `decoders.py`：条件解码器
-* `sensor_encoders.py`：多源传感器编码器
-* `time_encoding.py`：时间/窗口/相对时间编码
-* `model.py`：主模型
-
-### `src/training/`
-
-训练损失与训练逻辑。
-
-### `src/utils/`
-
-通用工具函数，后续扩展使用。
-
-### `outputs/`
-
-训练输出目录，例如：
-
-* checkpoints
-* logs
-* embeddings
-* 临时结果
-
----
-
-## 5. 当前最小可运行目标
-
-当前版本的“最小可运行”定义如下：
-
-1. 可以读取配置文件
-2. 可以读取 manifest
-3. 可以从 patch 数据生成训练样本
-4. 可以实例化模型
-5. 可以跑通一次 `forward()`
-6. 可以计算一次 loss 并完成 `backward()`
-
-也就是说，当前优先保证主链路跑通，而不是一次性覆盖所有功能。
-
----
-
-## 6. 数据目录组织建议
-
-推荐将代码仓库与数据目录分开管理。
-
-### 代码仓库目录
-
-```text
-/workspace/hyh/yajiang-aef
-```
-
-### 原始与中间数据目录
-
-```text
-/workspace/raw/yajiang_open/
-├── aoi/
-├── manifests/
-│   └── train.jsonl
-├── patches/
-│   ├── s2/
-│   ├── s1/
-│   ├── hls/
-│   └── targets/
-│       ├── dem/
-│       ├── worldcover/
-│       └── jrc_water/
-└── ...
-```
-
-### 统计量目录
-
-```text
-/workspace/statistics/yajiang_open/
-```
-
----
-
-## 7. 数据准备流程
-
-当前阶段的数据准备主线如下：
-
-### Step 1：确定 AOI
-
-先确定雅江第一版训练区域。
-
-推荐目录：
-
-```text
-/workspace/raw/yajiang_open/aoi/yajiang_aoi.geojson
-```
-
-### Step 2：准备原始数据
-
-#### 输入源
-
-* Sentinel-2 L2A
-* Sentinel-1 GRD
-* HLS
-
-#### 目标/辅助源
-
-* DEM
-* WorldCover
-* JRC GSW
-
-### Step 3：统一预处理
-
-对不同来源数据进行：
-
-* 裁剪到 AOI
-* 统一坐标系
-* 统一分辨率
-* 统一 patch 切分规则
-* 统一命名方式
-
-### Step 4：生成 patch
-
-将大图裁成固定大小 patch，并保存为 `.npy` 文件。
-
-当前约定：
-
-* 输入 patch：`[C, H, W]`
-* 连续目标：`[C, H, W]` 或 `[H, W]`
-* 类别目标：`[H, W]`
-
-### Step 5：生成 manifest
-
-通过 `scripts/build_manifest.py` 生成训练样本清单。
-
----
-
-## 8. patch 命名建议
-
-### 输入 patch
-
-推荐命名为：
-
-```text
-tile_0001_patch_0003_20240115.npy
-```
-
-包含：
-
-* tile 或区域编号
-* patch 编号
-* 日期
-
-### 目标 patch
-
-推荐命名为：
-
-```text
-tile_0001_patch_0003.npy
-```
-
-因为静态目标不一定需要额外时间戳。
-
----
-
-## 9. manifest 格式约定
-
-manifest 使用 `jsonl` 格式，每行一个样本。
-
-每个样本包含：
-
-* `sample_id`
-* `valid_start_ms`
-* `valid_end_ms`
-* `sources`
-
-  * `s2`
-  * `s1`
-  * `hls`
-* `targets`
-
-  * `dem`
-  * `worldcover`
-  * `jrc_water`
-
-### 单条 manifest 示例
-
-```json
-{
-  "sample_id": "tile_0001_patch_0003",
-  "valid_start_ms": 1704067200000,
-  "valid_end_ms": 1735603200000,
-  "sources": {
-    "s2": {
-      "type_id": 0,
-      "frames": [
-        {
-          "path": "/workspace/raw/yajiang_open/patches/s2/tile_0001_patch_0003_20240115.npy",
-          "timestamp_ms": 1705276800000,
-          "valid": true
-        }
-      ]
-    },
-    "s1": {
-      "type_id": 1,
-      "frames": [
-        {
-          "path": "/workspace/raw/yajiang_open/patches/s1/tile_0001_patch_0003_20240118.npy",
-          "timestamp_ms": 1705536000000,
-          "valid": true
-        }
-      ]
-    },
-    "hls": {
-      "type_id": 2,
-      "frames": [
-        {
-          "path": "/workspace/raw/yajiang_open/patches/hls/tile_0001_patch_0003_20240117.npy",
-          "timestamp_ms": 1705449600000,
-          "valid": true
-        }
-      ]
-    }
-  },
-  "targets": {
-    "dem": {
-      "path": "/workspace/raw/yajiang_open/patches/targets/dem/tile_0001_patch_0003.npy",
-      "relative_time": 0.0,
-      "metadata": [0.0, 0.0, 0.0, 0.0]
-    },
-    "worldcover": {
-      "path": "/workspace/raw/yajiang_open/patches/targets/worldcover/tile_0001_patch_0003.npy",
-      "relative_time": 0.0,
-      "metadata": [0.0, 0.0, 0.0, 0.0]
-    },
-    "jrc_water": {
-      "path": "/workspace/raw/yajiang_open/patches/targets/jrc_water/tile_0001_patch_0003.npy",
-      "relative_time": 0.0,
-      "metadata": [0.0, 0.0, 0.0, 0.0]
-    }
-  }
-}
-```
-
----
-
-## 10. 当前模型设计
-
-当前版本只保留 backbone 训练所需核心模块：
-
-* 多源传感器编码器
-* 时间编码
-* STP 主干
-* bottleneck
-* 条件解码器
-
-第一阶段主要关注：
-
-* 多模态时序特征编码
-* embedding 学习
-* 基础重建与抗坍缩训练
-
-当前不做：
-
-* 变化检测头
-* few-shot 任务头
-* 复杂下游任务
-* 大量专题扩展
-
----
-
-## 11. 当前配置文件说明
-
-主配置文件为：
-
-```text
-configs/yajiang_v1.yaml
-```
-
-其中最关键的几项包括：
-
-### 输入源定义
-
-* `data.input_sources`
-* `model.source_channels`
-
-### 目标源定义
-
-* `data.target_sources`
-
-### 模型主干参数
-
-* `model.stem_dim`
-* `model.precision_dim`
-* `model.embedding_dim`
-* `model.num_blocks`
-* `model.num_heads`
-* `model.vmf_kappa`
-
-### 训练参数
-
-* `training.epochs`
-* `training.lr`
-* `training.reconstruction_weight`
-* `training.uniformity_weight`
-* `training.variance_weight`
-* `training.decorrelation_weight`
-* `training.orthogonality_weight`
-
----
-
-## 12. 安装
-
-在当前环境中执行：
-
-```bash
 cd /workspace/hyh/yajiang-aef
 pip install -e .
-```
+2. 无真实数据时先跑 dummy 训练
+Bash
 
----
+PYTHONPATH=/workspace/hyh/yajiang-aef CUDA_VISIBLE_DEVICES=6 python scripts/train.py --config configs/yajiang_v1.yaml
+这条命令会使用 DummyYajiangDataset 跑通：
 
-## 13. 构建 manifest
+配置读取
 
-假设 patch 数据目录是：
+模型实例化
 
-```text
-/workspace/raw/yajiang_open/patches
-```
+forward
 
-则可执行：
+loss
 
-```bash
-python scripts/build_manifest.py \
-  --patch-root /workspace/raw/yajiang_open/patches \
-  --output /workspace/raw/yajiang_open/manifests/train.jsonl
-```
+backward
 
----
+epoch 训练循环
 
-## 14. 训练（最小版本）
+适合作为 smoke test。
 
-当前训练目标是先跑通最小版本：
+3. 有 manifest 后跑真实数据训练
+Bash
 
-```bash
-python scripts/train.py --config configs/yajiang_v1.yaml
-```
+PYTHONPATH=/workspace/hyh/yajiang-aef CUDA_VISIBLE_DEVICES=6 python scripts/train_with_manifest.py --config configs/yajiang_v1.yaml --manifest /path/to/train.jsonl
+数据组织
+推荐将代码仓库与数据目录分开：
 
-后续再扩展为：
 
-* 单卡完整训练
-* 多卡训练
-* 更完整的 trainer 和 logging
-* 验证与可视化
-* embedding 导出
+/workspace/hyh/yajiang-aef
+/workspace/raw/yajiang_open/
+推荐的 patch 组织方式：
 
----
 
-## 15. GPU 使用建议
+data_root/
+  patch_0001/
+    inputs/
+      s2/
+      s1/
+      hls/
+    targets/
+      dem.npy
+      worldcover.npy
+      jrc_water.npy
+当前 dataset.py 默认支持：
 
-当前可用 GPU：
+.npy
 
-* GPU 6
-* GPU 7
+.npz
 
-因此第一阶段建议：
+.pt
 
-### 单卡冒烟测试
+manifest
+manifest 使用 jsonl 格式，每行一个样本。
 
-```bash
-CUDA_VISIBLE_DEVICES=6 python scripts/train.py --config configs/yajiang_v1.yaml
-```
+每个样本至少包含：
 
-### 双卡扩展（后续）
+sample_id
 
-等单卡跑稳后，再考虑双卡：
+valid_start_ms
 
-```bash
-CUDA_VISIBLE_DEVICES=6,7 torchrun --nproc_per_node=2 scripts/train.py --config configs/yajiang_v1.yaml
-```
+valid_end_ms
 
-第一阶段不要急着上复杂 DDP，先保证：
+inputs
 
-* dataset 没问题
-* batch 没问题
-* forward 没问题
-* loss 没问题
+targets
 
----
+仓库里已经提供：
 
-## 16. 当前开发顺序建议
+src/data/manifest.py
 
-推荐按下面顺序推进：
+scripts/build_manifest.py
 
-### Step 1
+用于构建和读取 manifest。
 
-完成 `config.py`
+当前配置文件
+主配置文件：
 
-### Step 2
 
-完成 `manifest.py` 和 `dataset.py`
+configs/yajiang_v1.yaml
+重点字段包括：
 
-### Step 3
+数据相关
+data.input_sources
 
-完成最小 `losses.py`
+data.target_sources
 
-### Step 4
+data.image_size
 
-完成 `train.py`，先跑通一个 batch
+data.max_frames
 
-### Step 5
+data.batch_size
 
-补充数据预处理和 patch 构建流程
+模型相关
+model.source_channels
 
-### Step 6
+model.stem_dim
 
-扩展更复杂的损失、评估和专题任务
+model.precision_dim
 
----
+model.embedding_dim
 
-## 17. 后续扩展方向
+model.num_blocks
 
-等 MVP 跑通后，可以逐步加入：
+model.num_heads
 
-* 更完整的 HLS 时序支持
-* Dynamic World
-* 冰川边界
-* 滑坡事件数据
-* 更复杂的 temporal window augmentation
-* 变化检测和专题下游任务
-* 多 GPU 分布式训练
-* embedding 检索与可视化
+model.vmf_kappa
 
----
+训练相关
+training.epochs
 
-## 18. 当前状态总结
+training.lr
 
-这是一个面向雅江场景的多模态时空 embedding 最小训练框架。
+training.weight_decay
 
-它当前只做一件事：
+training.reconstruction_weight
 
-**先把训练主链路跑通。**
+training.uniformity_weight
 
-```
-```
+training.variance_weight
+
+training.decorrelation_weight
+
+training.orthogonality_weight
+
+当前已验证的能力
+当前仓库已经完成的验证重点是：
+
+dummy 数据训练链路可运行
+
+loss 可以正常计算
+
+训练循环可以稳定执行多个 epoch
+
+代码结构已经具备接真实 manifest 的基础
+
+当前限制
+当前版本仍然是第一阶段工程，主要限制包括：
+
+真实数据训练和评估还在继续联调
+
+checkpoint / resume / logging 仍可继续补强
+
+多卡训练还没有作为主路径稳定验证
+
+下游任务头和专题任务还未展开
+
+下一步计划
+用小规模真实 patch + manifest 跑通训练
+
+做小样本 overfit 检查
+
+增加 checkpoint 保存与 resume
+
+增加更完整的日志与评估
+
+再考虑 DDP / 加速 / 更大规模训练
+
+说明
+这个仓库当前更适合被看作：
+
+“雅江场景下 AEF 风格 backbone 的初版训练工程”

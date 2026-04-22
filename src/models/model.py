@@ -77,14 +77,19 @@ class AEFModel(nn.Module):
             channels=m.precision_dim,
             embedding_dim=m.embedding_dim,
             kappa=m.vmf_kappa,
-            skip_l2_training=m.skip_l2_norm_training,
+            skip_l2_training=getattr(
+                m,
+                "skip_l2_training",
+                getattr(m, "skip_l2_norm_training", False),
+            ),
         )
 
         # 为每个目标源构建一个 decoder
         self.decoders = nn.ModuleDict()
         for tgt in target_sources:
-            name = tgt["name"]
-            loss_type = tgt["loss_type"]
+            name = tgt.name if hasattr(tgt, "name") else tgt["name"]
+            loss_type = tgt.loss_type if hasattr(tgt, "loss_type") else tgt["loss_type"]
+            out_channels = tgt.out_channels if hasattr(tgt, "out_channels") else tgt["out_channels"]
 
             if loss_type == "categorical":
                 self.decoders[name] = CategoricalDecoder(
@@ -92,7 +97,7 @@ class AEFModel(nn.Module):
                     window_code_dim=m.window_code_dim,
                     relative_time_code_dim=m.relative_time_code_dim,
                     metadata_dim=m.metadata_dim,
-                    out_channels=tgt["out_channels"],
+                    out_channels=out_channels,
                     hidden_mult=getattr(m, "decoder_hidden_mult", 1),
                 )
             else:
@@ -101,7 +106,7 @@ class AEFModel(nn.Module):
                     window_code_dim=m.window_code_dim,
                     relative_time_code_dim=m.relative_time_code_dim,
                     metadata_dim=m.metadata_dim,
-                    out_channels=tgt["out_channels"],
+                    out_channels=out_channels,
                     hidden_mult=getattr(m, "decoder_hidden_mult", 1),
                 )
 
@@ -191,7 +196,6 @@ class AEFModel(nn.Module):
 
         embedding_map, embedding, pre_norm_embedding, pre_norm_map = self.bottleneck(summary_map)
 
-        b = embedding_map.shape[0]
         num_tgt = len(self.target_sources)
 
         if target_relative_time.dim() == 1:
@@ -213,7 +217,7 @@ class AEFModel(nn.Module):
         reconstructions: dict[str, torch.Tensor] = {}
 
         for i, tgt in enumerate(self.target_sources):
-            tgt_name = tgt["name"]
+            tgt_name = tgt.name if hasattr(tgt, "name") else tgt["name"]
             decoder = self.decoders[tgt_name]
 
             rel_t = target_relative_time[:, i:i+1]                  # [B, 1]

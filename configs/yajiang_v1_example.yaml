@@ -39,7 +39,7 @@ model:
   metadata_dim: 4
 
   vmf_kappa: 20.0
-  skip_l2_norm_training: false
+  skip_l2_training: false
   gradient_checkpointing: false
   decoder_hidden_mult: 1
 

@@ -77,7 +77,13 @@ class SensorEncoderBank(nn.Module):
         self.input_sources = input_sources
         self.input_dim = input_dim
         self.out_dim = out_dim
-        self.source_channels = source_channels or {}
+
+        if source_channels is None:
+            self.source_channels = {}
+        elif isinstance(source_channels, dict):
+            self.source_channels = source_channels
+        else:
+            self.source_channels = vars(source_channels)
 
         self.encoders = nn.ModuleDict()
         for src_name in input_sources:

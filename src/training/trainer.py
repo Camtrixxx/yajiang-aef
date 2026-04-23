@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
@@ -34,7 +35,16 @@ class Trainer:
         self.scaler = scaler
         self.state = TrainState()
         self.use_amp = getattr(cfg.training, "amp", True) and self.device.type == "cuda"
-        self.amp_dtype = torch.bfloat16 if getattr(cfg.training, "amp_dtype", "bf16") == "bf16" else torch.float16
+        self.amp_dtype = (
+            torch.bfloat16
+            if getattr(cfg.training, "amp_dtype", "bf16") == "bf16"
+            else torch.float16
+        )
+
+        exp_output_dir = getattr(cfg.experiment, "output_dir", "./outputs/default")
+        self.output_dir = Path(exp_output_dir)
+        self.ckpt_dir = self.output_dir / "checkpoints"
+        self.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     def _move_to_device(self, obj):
         if torch.is_tensor(obj):
@@ -44,6 +54,20 @@ class Trainer:
         if isinstance(obj, list):
             return [self._move_to_device(v) for v in obj]
         return obj
+
+    def save_checkpoint(self, name: str):
+        ckpt_path = self.ckpt_dir / name
+        payload = {
+            "epoch": self.state.epoch,
+            "global_step": self.state.global_step,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+        }
+        if self.scaler is not None:
+            payload["scaler"] = self.scaler.state_dict()
+
+        torch.save(payload, ckpt_path)
+        print(f"Saved checkpoint to {ckpt_path}")
 
     def train_one_epoch(self) -> dict[str, float]:
         self.model.train()
@@ -59,7 +83,11 @@ class Trainer:
 
             self.optimizer.zero_grad(set_to_none=True)
 
-            with torch.autocast(device_type=self.device.type, dtype=self.amp_dtype, enabled=self.use_amp):
+            with torch.autocast(
+                device_type=self.device.type,
+                dtype=self.amp_dtype,
+                enabled=self.use_amp,
+            ):
                 output = self.model(
                     source_frames=batch["source_frames"],
                     source_timestamps_ms=batch["source_timestamps_ms"],
@@ -113,3 +141,6 @@ class Trainer:
             self.state.epoch = epoch + 1
             train_metrics = self.train_one_epoch()
             print(f"Epoch {self.state.epoch} done: {train_metrics}")
+
+            self.save_checkpoint(f"epoch_{self.state.epoch:03d}.pt")
+            self.save_checkpoint("latest.pt")

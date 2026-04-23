@@ -67,7 +67,12 @@ class YajiangAEFDataset(Dataset):
         self.image_size = int(cfg.data.image_size)
         self.metadata_dim = int(cfg.data.metadata_dim)
 
-        self.source_channels: dict[str, int] = dict(getattr(cfg.model, "source_channels", {}))
+        source_channels = getattr(cfg.model, "source_channels", {})
+        if isinstance(source_channels, dict):
+            self.source_channels = source_channels
+        else:
+            self.source_channels = vars(source_channels)
+
         self.max_input_channels = max(self.source_channels.values())
 
         # target 配置表

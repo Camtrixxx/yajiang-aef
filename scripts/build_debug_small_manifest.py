@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+DATA_ROOT = Path("/workspace/hyh/yajiang-aef/data/debug_small_npy")
+OUTPUT_PATH = DATA_ROOT / "train.jsonl"
+
+INPUT_SOURCES = ["s2", "s1"]
+TARGET_SOURCES = ["dem", "worldcover"]
+
+# 这里先固定一个有效时间窗口，与你当前季度文件对应
+VALID_START_MS = 1672531200000  # 2023-01-01 00:00:00 UTC
+VALID_END_MS   = 1748736000000  # 2025-06-01 00:00:00 UTC
+
+
+def quarter_to_timestamp_ms(name: str) -> int:
+    """
+    例如:
+      2023Q1 -> 2023-01-01
+      2023Q2 -> 2023-04-01
+      2023Q3 -> 2023-07-01
+      2023Q4 -> 2023-10-01
+    """
+    if len(name) != 6 or name[4] != "Q":
+        raise ValueError(f"Unexpected quarter name: {name}")
+
+    year = int(name[:4])
+    quarter = int(name[5])
+
+    month_map = {
+        1: 1,
+        2: 4,
+        3: 7,
+        4: 10,
+    }
+    if quarter not in month_map:
+        raise ValueError(f"Unexpected quarter name: {name}")
+
+    month = month_map[quarter]
+
+    import datetime as dt
+    ts = dt.datetime(year, month, 1, 0, 0, 0, tzinfo=dt.timezone.utc).timestamp()
+    return int(ts * 1000)
+
+
+def build_one_record(patch_dir: Path) -> dict:
+    patch_id = patch_dir.name
+
+    inputs = {}
+    for src_name in INPUT_SOURCES:
+        src_dir = patch_dir / "inputs" / src_name
+        if not src_dir.exists():
+            raise FileNotFoundError(f"Missing input dir: {src_dir}")
+
+        frames = []
+        for npy_path in sorted(src_dir.glob("*.npy")):
+            quarter_name = npy_path.stem  # e.g. 2023Q1
+            timestamp_ms = quarter_to_timestamp_ms(quarter_name)
+            frames.append(
+                {
+                    "path": str(npy_path.resolve()),
+                    "timestamp_ms": timestamp_ms,
+                }
+            )
+
+        if len(frames) == 0:
+            raise RuntimeError(f"No input frames found in {src_dir}")
+
+        inputs[src_name] = {"frames": frames}
+
+    targets = {}
+
+    dem_path = patch_dir / "targets" / "dem.npy"
+    if not dem_path.exists():
+        raise FileNotFoundError(f"Missing target: {dem_path}")
+    targets["dem"] = {
+        "path": str(dem_path.resolve()),
+        "relative_time": 0.5,
+        "metadata": [0.0, 0.0, 0.0, 0.0],
+    }
+
+    wc_path = patch_dir / "targets" / "worldcover.npy"
+    if not wc_path.exists():
+        raise FileNotFoundError(f"Missing target: {wc_path}")
+    targets["worldcover"] = {
+        "path": str(wc_path.resolve()),
+        "relative_time": 0.5,
+        "metadata": [0.0, 0.0, 0.0, 0.0],
+    }
+
+    return {
+        "sample_id": patch_id,
+        "valid_start_ms": VALID_START_MS,
+        "valid_end_ms": VALID_END_MS,
+        "inputs": inputs,
+        "targets": targets,
+        "split": "train",
+        "meta": {},
+    }
+
+
+def main() -> None:
+    if not DATA_ROOT.exists():
+        raise FileNotFoundError(f"DATA_ROOT not found: {DATA_ROOT}")
+
+    patch_dirs = sorted(
+        p for p in DATA_ROOT.iterdir()
+        if p.is_dir() and p.name.startswith("patch_")
+    )
+
+    if len(patch_dirs) == 0:
+        raise RuntimeError(f"No patch dirs found under {DATA_ROOT}")
+
+    records = []
+    for patch_dir in patch_dirs:
+        records.append(build_one_record(patch_dir))
+
+    with OUTPUT_PATH.open("w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    print(f"Wrote {len(records)} records to {OUTPUT_PATH}")
+
+
+if __name__ == "__main__":
+    main()

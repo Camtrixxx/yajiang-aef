@@ -36,6 +36,20 @@
 - 小样本过拟合检查
 - 训练日志和中间结果检查
 
+现在立刻可以做的
+- 把 jrc_water 暂时从 v0.2-a 里移除
+- 先用 s2 + s1 -> dem + worldcover
+- 给 worldcover 做类别重映射 
+- 先转 4～8 个 patch 成 .npy
+- 生成最小 manifest
+- 跑第一版真实数据单卡训练
+
+暂时不要做的
+- 不要先碰 jrc_water
+- 不要先碰 landsat
+- 不要先改多卡
+- 不要先做复杂优化
+
 ---
 
 ### v0.3 完整数据单卡 baseline 训练

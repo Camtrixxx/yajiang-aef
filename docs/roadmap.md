@@ -30,7 +30,7 @@
 - target shape、类别范围、mask、时间字段全部确认无误
 - 至少完成一次真实数据的小规模 smoke test
 
-阶段重点：
+阶段重点：P
 - 数据联调
 - 真实数据协议验证
 - 小样本过拟合检查
@@ -49,6 +49,15 @@
 - 不要先碰 landsat
 - 不要先改多卡
 - 不要先做复杂优化
+
+```text
+cd /workspace/hyh/yajiang-aef
+
+PYTHONPATH=/workspace/hyh/yajiang-aef CUDA_VISIBLE_DEVICES=7 \
+python scripts/train_with_manifest.py \
+  --config configs/yajiang_v0_2_a.yaml \
+  --manifest /workspace/hyh/yajiang-aef/data/debug_small_npy/train.jsonl
+````
 
 ---
 

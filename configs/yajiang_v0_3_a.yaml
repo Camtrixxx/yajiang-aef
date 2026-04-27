@@ -1,0 +1,67 @@
+experiment:
+  name: aef_hyh_yajiang_v0_3_a
+  seed: 42
+  output_dir: /workspace/hyh/yajiang-aef/outputs/aef_hyh_yajiang_v0_3_a
+
+data:
+  dataset_type: yajiang_open
+  manifest_path: /workspace/hyh/yajiang-aef/data/full_npy/train.jsonl
+  stats_dir: /workspace/statistics/yajiang_open
+
+  batch_size: 2
+  num_workers: 4
+  image_size: 128
+  max_frames: 16
+  num_samples: 0
+
+  metadata_dim: 4
+
+  input_sources:
+    - s2
+    - s1
+
+  target_sources:
+    - name: dem
+      loss_type: continuous
+      out_channels: 1
+    - name: worldcover
+      loss_type: categorical
+      out_channels: 9
+
+model:
+  input_dim: 6
+  stem_dim: 128
+  precision_dim: 256
+  embedding_dim: 128
+
+  time_code_dim: 64
+  window_code_dim: 64
+  relative_time_code_dim: 16
+
+  metadata_dim: 4
+
+  num_blocks: 4
+  num_heads: 4
+  vmf_kappa: 2000.0
+  skip_l2_training: true
+  gradient_checkpointing: false
+  decoder_hidden_mult: 1
+
+  source_channels:
+    s2: 6
+    s1: 2
+
+training:
+  epochs: 50
+  lr: 0.0001
+  weight_decay: 0.01
+  grad_clip_norm: 1.0
+
+  reconstruction_weight: 1.0
+  uniformity_weight: 0.01
+  variance_weight: 0.01
+  decorrelation_weight: 0.001
+  orthogonality_weight: 0.001
+
+evaluation:
+  knn_k: 5

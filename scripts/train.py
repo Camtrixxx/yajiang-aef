@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import random
-
-import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
 from src.config import load_config
 from src.models.model import AEFModel
 from src.training.trainer import Trainer
+from src.utils.device import build_grad_scaler, resolve_device, set_seed, should_pin_memory
 
 
 class DummyYajiangDataset(Dataset):
@@ -98,24 +96,19 @@ def collate_fn(batch):
     return out
 
 
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
-    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--device", type=str, default="auto")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     set_seed(getattr(cfg.experiment, "seed", 42))
+    device = resolve_device(args.device)
+    print(f"Using device: {device}")
 
     model = AEFModel(cfg)
-    model.to(args.device)
+    model.to(device)
 
     dataset = DummyYajiangDataset(cfg, length=max(getattr(cfg.data, "num_samples", 0), 32))
     loader = DataLoader(
@@ -123,6 +116,7 @@ def main():
         batch_size=cfg.data.batch_size,
         shuffle=True,
         num_workers=0,
+        pin_memory=should_pin_memory(device),
         collate_fn=collate_fn,
     )
 
@@ -132,16 +126,14 @@ def main():
         weight_decay=cfg.training.weight_decay,
     )
 
-    scaler = None
-    if args.device.startswith("cuda") and getattr(cfg.training, "amp_dtype", "bf16") == "fp16":
-        scaler = torch.cuda.amp.GradScaler()
+    scaler = build_grad_scaler(device, getattr(cfg.training, "amp_dtype", "bf16"))
 
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
         train_loader=loader,
         cfg=cfg,
-        device=args.device,
+        device=device,
         scaler=scaler,
     )
     trainer.fit()

@@ -27,6 +27,7 @@ outputs/
 checkpoints/
 cache/
 tmp/
+kernel_meta/
 
 # Model files
 *.pt

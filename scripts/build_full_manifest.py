@@ -9,7 +9,7 @@ DEFAULT_DATA_ROOT = Path("/workspace/hyh/yajiang-aef/data/full_npy")
 DEFAULT_OUTPUT_PATH = DEFAULT_DATA_ROOT / "train.jsonl"
 
 INPUT_SOURCES = ["s2", "s1"]
-TARGET_SOURCES = ["dem", "worldcover"]
+TARGET_SOURCES = ["dem", "worldcover", "jrc_water"]
 
 # 当前季度输入覆盖 2023Q1 ~ 2026Q1。
 VALID_START_MS = 1672531200000  # 2023-01-01 00:00:00 UTC

@@ -101,7 +101,9 @@ def embedding_uniformity_loss(emb: torch.Tensor, t: float = 2.0) -> torch.Tensor
         return emb.new_tensor(0.0)
 
     emb = F.normalize(emb, dim=-1)
-    dist = torch.pdist(emb, p=2).pow(2)
+    sim = emb @ emb.T
+    dist = (2.0 - 2.0 * sim).clamp_min(0.0)
+    dist = dist[torch.triu(torch.ones_like(dist, dtype=torch.bool), diagonal=1)]
     return torch.log(torch.exp(-t * dist).mean() + 1e-8)
 
 

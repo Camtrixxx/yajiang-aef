@@ -3,11 +3,13 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
 from torch.utils.data import DataLoader
 
 from .losses import compute_total_loss
+from src.utils.distributed import DistributedState, reduce_metric
 
 
 @dataclass
@@ -24,15 +26,17 @@ class Trainer:
         optimizer,
         train_loader: DataLoader,
         cfg,
-        device: str = "cuda",
+        device: str | torch.device = "auto",
         scaler=None,
+        distributed: DistributedState | None = None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.train_loader = train_loader
         self.cfg = cfg
-        self.device = torch.device(device)
+        self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.scaler = scaler
+        self.distributed = distributed or DistributedState(enabled=False)
         self.state = TrainState()
         self.use_amp = getattr(cfg.training, "amp", True) and self.device.type == "cuda"
         self.amp_dtype = (
@@ -44,7 +48,30 @@ class Trainer:
         exp_output_dir = getattr(cfg.experiment, "output_dir", "./outputs/default")
         self.output_dir = Path(exp_output_dir)
         self.ckpt_dir = self.output_dir / "checkpoints"
-        self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+        self.export_dir = self.output_dir / "exports"
+        if self.distributed.is_main_process:
+            self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+            self.export_dir.mkdir(parents=True, exist_ok=True)
+
+    def _state_dict(self):
+        if hasattr(self.model, "module"):
+            return self.model.module.state_dict()
+        return self.model.state_dict()
+
+    def _log(self, message: str):
+        if self.distributed.is_main_process:
+            print(message)
+
+    def _config_to_dict(self, obj):
+        if isinstance(obj, SimpleNamespace):
+            return {k: self._config_to_dict(v) for k, v in vars(obj).items()}
+        if isinstance(obj, dict):
+            return {k: self._config_to_dict(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._config_to_dict(v) for v in obj]
+        if isinstance(obj, Path):
+            return str(obj)
+        return obj
 
     def _move_to_device(self, obj):
         if torch.is_tensor(obj):
@@ -56,18 +83,36 @@ class Trainer:
         return obj
 
     def save_checkpoint(self, name: str):
+        if not self.distributed.is_main_process:
+            return
+
         ckpt_path = self.ckpt_dir / name
         payload = {
             "epoch": self.state.epoch,
             "global_step": self.state.global_step,
-            "model": self.model.state_dict(),
+            "model": self._state_dict(),
             "optimizer": self.optimizer.state_dict(),
         }
         if self.scaler is not None:
             payload["scaler"] = self.scaler.state_dict()
 
         torch.save(payload, ckpt_path)
-        print(f"Saved checkpoint to {ckpt_path}")
+        self._log(f"Saved checkpoint to {ckpt_path}")
+
+    def export_deploy_model(self, name: str = "deploy.pt"):
+        if not self.distributed.is_main_process:
+            return
+
+        export_path = self.export_dir / name
+        payload = {
+            "model": self._state_dict(),
+            "config": self._config_to_dict(self.cfg),
+            "epoch": self.state.epoch,
+            "global_step": self.state.global_step,
+            "format": "aef_deploy_v1",
+        }
+        torch.save(payload, export_path)
+        self._log(f"Exported deploy model to {export_path}")
 
     def train_one_epoch(self) -> dict[str, float]:
         self.model.train()
@@ -122,9 +167,9 @@ class Trainer:
                 meter[k] = meter.get(k, 0.0) + float(v.detach().item())
 
             if (step + 1) % log_interval == 0:
-                avg_loss = meter["loss"] / count
+                avg_loss = reduce_metric(meter["loss"] / count, self.device)
                 elapsed = time.time() - start_time
-                print(
+                self._log(
                     f"[epoch {self.state.epoch:03d} step {step+1:04d}] "
                     f"loss={avg_loss:.4f} "
                     f"time={elapsed:.1f}s"
@@ -132,15 +177,31 @@ class Trainer:
 
         for k in list(meter.keys()):
             meter[k] /= max(count, 1)
+            meter[k] = reduce_metric(meter[k], self.device)
 
         return meter
 
     def fit(self):
         epochs = int(self.cfg.training.epochs)
+        save_every = int(getattr(self.cfg.training, "save_every", 0))
+        save_epoch_checkpoints = bool(getattr(self.cfg.training, "save_epoch_checkpoints", False))
+
         for epoch in range(epochs):
             self.state.epoch = epoch + 1
+            if hasattr(self.train_loader.sampler, "set_epoch"):
+                self.train_loader.sampler.set_epoch(epoch)
             train_metrics = self.train_one_epoch()
-            print(f"Epoch {self.state.epoch} done: {train_metrics}")
+            self._log(f"Epoch {self.state.epoch} done: {train_metrics}")
 
-            self.save_checkpoint(f"epoch_{self.state.epoch:03d}.pt")
+            loss = float(train_metrics.get("loss", float("inf")))
+            if loss < self.state.best_loss:
+                self.state.best_loss = loss
+                self.save_checkpoint("best.pt")
+
+            if save_epoch_checkpoints and save_every > 0 and self.state.epoch % save_every == 0:
+                self.save_checkpoint(f"epoch_{self.state.epoch:03d}.pt")
+
             self.save_checkpoint("latest.pt")
+
+        self.save_checkpoint("final.pt")
+        self.export_deploy_model("aef_hyh_yajiang_v0_3_c_deploy.pt")

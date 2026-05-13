@@ -16,7 +16,8 @@ dependencies = [
   "numpy",
   "pyyaml",
   "scikit-learn",
-  "opencv-python"
+  "opencv-python",
+  "matplotlib"
 ]
 
 [tool.setuptools]

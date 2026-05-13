@@ -91,6 +91,8 @@ def evaluate_feature_set(
     results[f"{name}_linear"] = evaluate_predictions(y_test, pred, task_type)
 
     for k in knn_k:
+        if len(y_train) < k:
+            continue
         pred = fit_predict_knn(x_train, y_train, x_test, task_type=task_type, k=k)
         results[f"{name}_knn_k{k}"] = evaluate_predictions(y_test, pred, task_type)
 

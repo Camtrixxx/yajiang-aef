@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,9 +50,16 @@ class Trainer:
         self.output_dir = Path(exp_output_dir)
         self.ckpt_dir = self.output_dir / "checkpoints"
         self.export_dir = self.output_dir / "exports"
+        self.log_dir = self.output_dir / "logs"
+        self.train_log_path = self.log_dir / "train.log"
         if self.distributed.is_main_process:
             self.ckpt_dir.mkdir(parents=True, exist_ok=True)
             self.export_dir.mkdir(parents=True, exist_ok=True)
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.train_log_path.write_text(
+                f"Training started at {datetime.now().isoformat(timespec='seconds')}\n",
+                encoding="utf-8",
+            )
 
     def _state_dict(self):
         if hasattr(self.model, "module"):
@@ -61,6 +69,9 @@ class Trainer:
     def _log(self, message: str):
         if self.distributed.is_main_process:
             print(message)
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            with self.train_log_path.open("a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] {message}\n")
 
     def _config_to_dict(self, obj):
         if isinstance(obj, SimpleNamespace):

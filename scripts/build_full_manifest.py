@@ -8,7 +8,7 @@ from pathlib import Path
 DEFAULT_DATA_ROOT = Path("/workspace/hyh/yajiang-aef/data/full_npy")
 DEFAULT_OUTPUT_PATH = DEFAULT_DATA_ROOT / "train.jsonl"
 
-INPUT_SOURCES = ["s2", "s1"]
+INPUT_SOURCES = ["s2", "s1", "landsat"]
 TARGET_SOURCES = ["dem", "worldcover", "jrc_water"]
 
 # 当前季度输入覆盖 2023Q1 ~ 2026Q1。

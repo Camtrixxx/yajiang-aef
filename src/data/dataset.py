@@ -55,6 +55,7 @@ class YajiangAEFDataset(Dataset):
         "s2": 0,
         "s1": 1,
         "hls": 2,
+        "landsat": 3,
     }
 
     def __init__(self, cfg, manifest_path: str, split: str = "train") -> None:

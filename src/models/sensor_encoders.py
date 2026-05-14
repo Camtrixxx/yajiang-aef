@@ -55,12 +55,14 @@ class SensorEncoderBank(nn.Module):
         s2 -> 0
         s1 -> 1
         hls -> 2
+        landsat -> 3
     """
 
     SOURCE_NAME_TO_ID = {
         "s2": 0,
         "s1": 1,
         "hls": 2,
+        "landsat": 3,
     }
     SOURCE_ID_TO_NAME = {v: k for k, v in SOURCE_NAME_TO_ID.items()}
 

@@ -14,6 +14,12 @@
 - 简化测评体系；
 - 在线 Web 可视化演示。
 
+当前新增的 `v1.1` 分支配置在 `v0.3c` 基础上接入了 Landsat 作为第三个输入源：
+
+```text
+S2 + S1 + Landsat -> DEM / WorldCover / JRC Water
+```
+
 ## 1. 环境与路径
 
 推荐在 Docker 容器中运行：
@@ -67,6 +73,7 @@ data/full_npy/train.jsonl
 ```text
 s2: Sentinel-2, 6 channels
 s1: Sentinel-1, 2 channels
+landsat: Landsat, 6 channels
 ```
 
 监督目标：
@@ -112,6 +119,12 @@ v0.3c 关键配置：
 
 ```text
 configs/yajiang_v0_3_c.yaml
+```
+
+v1.1 Landsat 配置：
+
+```text
+configs/yajiang_v1_1.yaml
 ```
 
 主要参数：
@@ -160,6 +173,48 @@ exports/aef_hyh_yajiang_v0_3_c_deploy.pt
 
 ```text
 outputs/aef_hyh_yajiang_v0_3_c/exports/aef_hyh_yajiang_v0_3_c_deploy.pt
+```
+
+## 4.1 v1.1 Landsat 接入
+
+Landsat 原始数据目录：
+
+```text
+/workspace/raw/yajiang/landsat
+```
+
+转换后的数据位置：
+
+```text
+data/full_npy/patch_xxxxxx/inputs/landsat/YYYYQn.npy
+```
+
+转换命令：
+
+```bash
+cd /workspace/hyh/yajiang-aef
+python scripts/prepare_landsat_npy.py --skip-existing
+python scripts/build_full_manifest.py
+```
+
+当前已转换：
+
+```text
+1708 patches
+22204 Landsat frames
+13 frames per patch
+```
+
+启动 v1.1 训练脚本：
+
+```bash
+bash scripts/run_v1_1.sh
+```
+
+显式指定后四张卡：
+
+```bash
+NPU_IDS=4,5,6,7 NPROC_PER_NODE=4 bash scripts/run_v1_1.sh
 ```
 
 ## 5. 测评体系
@@ -309,6 +364,7 @@ pkill -f scripts/serve_demo.py
 ```text
 scripts/prepare_full_npy.py
 scripts/prepare_jrc_water_npy.py
+scripts/prepare_landsat_npy.py
 scripts/build_full_manifest.py
 scripts/build_debug_small_manifest.py
 ```
@@ -319,6 +375,7 @@ scripts/build_debug_small_manifest.py
 scripts/train.py
 scripts/train_with_manifest.py
 scripts/run_v0_3_c.sh
+scripts/run_v1_1.sh
 ```
 
 ### 测评与展示

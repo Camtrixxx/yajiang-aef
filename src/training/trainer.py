@@ -204,4 +204,5 @@ class Trainer:
             self.save_checkpoint("latest.pt")
 
         self.save_checkpoint("final.pt")
-        self.export_deploy_model("aef_hyh_yajiang_v0_3_c_deploy.pt")
+        experiment_name = getattr(self.cfg.experiment, "name", "aef_model")
+        self.export_deploy_model(f"{experiment_name}_deploy.pt")

@@ -28,6 +28,7 @@ checkpoints/
 cache/
 tmp/
 kernel_meta/
+fusion_result.json
 
 # Model files
 *.pt

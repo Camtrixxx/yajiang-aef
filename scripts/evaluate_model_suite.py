@@ -8,11 +8,6 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "32")
-os.environ.setdefault("OMP_NUM_THREADS", "32")
-os.environ.setdefault("MKL_NUM_THREADS", "32")
-os.environ.setdefault("NUMEXPR_NUM_THREADS", "32")
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -42,6 +37,13 @@ from src.eval.metrics import (
 )
 from src.eval.sampling import sample_paired_feature_pixels, target_to_eval_label
 from src.utils.device import resolve_device, set_seed
+
+
+def configure_thread_env() -> None:
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "32")
+    os.environ.setdefault("OMP_NUM_THREADS", "32")
+    os.environ.setdefault("MKL_NUM_THREADS", "32")
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", "32")
 
 
 def parse_args() -> argparse.Namespace:
@@ -432,13 +434,11 @@ def generate_demo_panels(
     out_dir: Path,
 ) -> list[str]:
     paths: list[str] = []
+    ds = YajiangAEFDataset(cfg=cfg, manifest_path=manifest, split="train")
     for idx in demo_indices:
-        ds = YajiangAEFDataset(cfg=cfg, manifest_path=manifest, split="train")
         if idx < 0 or idx >= len(ds):
             continue
-        ds.records = [ds.records[idx]]
-        loader = DataLoader(ds, batch_size=1, shuffle=False, num_workers=0, collate_fn=aef_collate_fn)
-        batch = next(iter(loader))
+        batch = aef_collate_fn([ds[idx]])
         with torch.no_grad():
             device_batch = batch_to_device(batch, device)
             output = model(
@@ -611,6 +611,7 @@ def compact_console_summary(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
+    configure_thread_env()
     args = parse_args()
     set_seed(args.seed)
     out_dir = Path(args.output_dir)

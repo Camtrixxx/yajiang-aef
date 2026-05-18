@@ -108,22 +108,34 @@ class SensorEncoderBank(nn.Module):
         encoded_list = []
 
         for s_idx in range(s):
-            src_id = int(source_type_ids[0, s_idx].item())
-            if src_id not in self.SOURCE_ID_TO_NAME:
-                raise ValueError(f"Unknown source_type_id: {src_id}")
-            src_name = self.SOURCE_ID_TO_NAME[src_id]
+            slot_encoded = None
+            for src_id_tensor in torch.unique(source_type_ids[:, s_idx]):
+                src_id = int(src_id_tensor.item())
+                if src_id not in self.SOURCE_ID_TO_NAME:
+                    raise ValueError(f"Unknown source_type_id: {src_id}")
+                src_name = self.SOURCE_ID_TO_NAME[src_id]
+                if src_name not in self.encoders:
+                    raise ValueError(f"Source '{src_name}' is not configured in this encoder bank")
 
-            encoder = self.encoders[src_name]
-            in_ch = self.source_channels.get(src_name, self.input_dim)
+                batch_mask = source_type_ids[:, s_idx] == src_id
+                group_b = int(batch_mask.sum().item())
+                encoder = self.encoders[src_name]
+                in_ch = self.source_channels.get(src_name, self.input_dim)
 
-            frames = source_frames[:, s_idx]                # [B, T, C, H, W]
-            frames = frames[:, :, :in_ch, :, :]            # 只取有效前 in_ch 通道
-            frames = frames.reshape(b * t, in_ch, h, w)    # [B*T, C, H, W]
+                frames = source_frames[batch_mask, s_idx]       # [B', T, C, H, W]
+                frames = frames[:, :, :in_ch, :, :]             # 只取有效前 in_ch 通道
+                frames = frames.reshape(group_b * t, in_ch, h, w)
 
-            enc = encoder(frames)                          # [B*T, D, H/2, W/2]
-            _, d, hh, ww = enc.shape
-            enc = enc.reshape(b, t, d, hh, ww)
+                enc = encoder(frames)                           # [B'*T, D, H/2, W/2]
+                _, d, hh, ww = enc.shape
+                enc = enc.reshape(group_b, t, d, hh, ww)
 
-            encoded_list.append(enc)
+                if slot_encoded is None:
+                    slot_encoded = source_frames.new_zeros(b, t, d, hh, ww)
+                slot_encoded[batch_mask] = enc
+
+            if slot_encoded is None:
+                raise ValueError(f"No source ids found for source slot {s_idx}")
+            encoded_list.append(slot_encoded)
 
         return torch.stack(encoded_list, dim=1)  # [B, S, T, D, H/2, W/2]

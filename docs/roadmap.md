@@ -1,176 +1,214 @@
 # yajiang-aef Roadmap
 
-## 版本规划
+## 当前阶段
 
-### v0.1 Mock 数据单卡冒烟测试
-目标：先打通最小训练主链路，验证工程闭环是否成立。
+项目已经完成从早期真实数据联调、Ascend/NPU 多卡训练，到 NVIDIA A800 CUDA 8 卡训练的迁移。
 
-完成标准：
-- 配置可以正常读取
-- dummy / mock 数据可以正常产出 batch
-- 模型可以成功完成 forward
-- loss 可以正常计算
-- backward 和 optimizer step 可以正常执行
-- 单卡训练循环可以稳定跑完多个 epoch
-- 基础日志可以正常输出
-
-当前状态：
-- 已基本完成
-
----
-
-### v0.2 小规模真实数据单卡联调与过拟合验证
-目标：从 mock 数据切换到真实数据，验证数据协议、标签格式和训练逻辑是否正确。
-
-完成标准：
-- manifest 可以正确构建与读取
-- dataset 可以正确输出真实 batch
-- 真实数据在单卡上可以跑通训练
-- 小规模样本（如 8～32 个 patch）可以明显过拟合
-- target shape、类别范围、mask、时间字段全部确认无误
-- 至少完成一次真实数据的小规模 smoke test
-
-阶段重点：
-- 数据联调
-- 真实数据协议验证
-- 小样本过拟合检查
-- 训练日志和中间结果检查
-
-现在立刻可以做的
-- 把 jrc_water 暂时从 v0.2-a 里移除
-- 先用 s2 + s1 -> dem + worldcover
-- 给 worldcover 做类别重映射 
-- 先转 4～8 个 patch 成 .npy
-- 生成最小 manifest
-- 跑第一版真实数据单卡训练
-
-暂时不要做的
-- 不要先碰 jrc_water
-- 不要先碰 landsat
-- 不要先改多卡
-- 不要先做复杂优化
+当前主线：
 
 ```text
-cd /workspace/hyh/yajiang-aef
+v1.2 A800/CUDA 8-card DDP
+S2 + S1 + Landsat -> DEM + WorldCover + JRC Water
+目标：雅江地区通用多模态 embedding
+```
 
-PYTHONPATH=/workspace/hyh/yajiang-aef CUDA_VISIBLE_DEVICES=7 \
-python scripts/train_with_manifest.py \
-  --config configs/yajiang_v0_2_a.yaml \
-  --manifest /workspace/hyh/yajiang-aef/data/debug_small_npy/train.jsonl
-````
+最新实验记录：
 
----
+```text
+docs/experiments/v1.2_a800.md
+```
 
-### v0.3 完整数据单卡 baseline 训练
-目标：在完整数据集上建立第一版单卡训练 baseline。
+## 已完成阶段
 
-完成标准：
-- 完整数据集可以在单卡上稳定训练
-- 显存占用、step time、训练耗时有基本统计
-- checkpoint 保存功能可用
-- 至少完成一版完整训练配置的 baseline 实验
-- 训练曲线和主要 loss 变化趋势可记录、可复现
+### v0.1 Mock 数据冒烟测试
 
-阶段重点：
-- 建立单卡 baseline
-- 固化第一版训练配置
-- 形成后续多卡训练的对照基线
+目标：打通最小训练主链路。
 
----
+状态：已完成。
 
-### v0.4 多卡分布式训练与第一版模型产出
-目标：在单卡 baseline 基础上完成多卡训练支持，并产出第一版可评测模型。
+完成内容：
 
-完成标准：
-- 多卡分布式训练可以正常启动和稳定运行
-- 多卡结果与单卡训练趋势基本一致
-- 吞吐和训练时间相比单卡有明确改善
-- 能够产出第一版模型权重
-- 能够保存完整训练配置与关键日志
+- 配置读取
+- mock dataset
+- forward / loss / backward
+- 基础训练循环
 
-阶段重点：
-- DDP / 分布式训练支持
-- 训练加速
-- 第一版模型产出
+### v0.2 小规模真实数据联调
 
-说明：
-- 这一阶段得到的是**第一版可训练、可复现、可评测的基础模型**
-- 不等同于模型已经完成全部优化
+目标：从 mock 数据切换到真实遥感数据，验证数据协议和 target 格式。
 
----
+状态：已完成。
 
-### v1.x 评测体系建立与模型优化迭代
-目标：在已有基础模型上建立正式评测体系，并持续推进模型优化。
+完成内容：
 
-完成标准：
-- 建立一套稳定的评测数据与评测脚本
-- 明确 baseline 对比方式
-- 支持分类、回归或下游制图任务评测
-- 完成至少一轮结构、损失或训练策略优化实验
-- 能对比不同版本模型的优劣
-- 形成可持续迭代的实验闭环
+- debug manifest
+- 小规模 `.npy` 数据
+- 单卡训练联调
+- DEM / WorldCover / JRC Water target shape 与 ignore mask 验证
 
-阶段重点：
-- 评测体系建设
-- baseline 对比
-- ablation
-- 模型结构优化
-- 训练策略优化
-- 数据策略优化
+### v0.3 Ascend/NPU 多卡 baseline
 
----
+目标：在华为 Ascend 环境完成第一版完整多卡训练。
 
-## 总体开发顺序
+状态：已完成，作为历史 baseline 保留。
 
-整体遵循以下顺序：
+代表版本：
 
-1. 先验证工程闭环
-2. 再验证真实数据链路
-3. 再建立单卡 baseline
-4. 再做多卡分布式训练
-5. 最后进入评测体系和模型优化阶段
+```text
+v0.3a
+v0.3c
+```
 
-这样做的原因是：
+相关文档：
 
-- 先确认代码能跑通，再扩大数据规模
-- 先确认训练逻辑正确，再扩展训练规模
-- 先建立 baseline，再做加速和优化
-- 避免把“工程联调问题”和“模型效果问题”混在一起
+```text
+docs/experiments/v0.3a.md
+docs/experiments/v0.3c.md
+```
 
----
+### v1.1 Landsat 输入与迁移准备
 
-## 当前项目阶段判断
+目标：加入 Landsat，准备从旧环境迁移到新 GPU 环境。
 
-根据当前进度，项目已经基本完成：
+状态：已完成，作为过渡版本保留。
 
-- v0.1 Mock 数据单卡冒烟测试
+### v1.2 A800 主线
 
-下一阶段重点应转向：
+目标：适配 NVIDIA A800 8 卡训练，建立当前主线实验。
 
-- v0.2 小规模真实数据单卡联调与过拟合验证
+状态：已完成。
 
----
+完成内容：
 
-## 当前建议的优先事项
+- CUDA/A800 训练脚本
+- bf16 AMP / TF32 / cudnn benchmark
+- DataLoader persistent workers / prefetch
+- DDP resume
+- source preprocessing
+- target loss weights / class weights
+- 50 / 100 / 200 epoch 训练与评测
 
-### 第一优先级
-完成真实数据的小规模 manifest 构建与单卡训练联调。
+## 当前结论
 
-### 第二优先级
-完成小样本过拟合验证，确认数据协议和训练逻辑没有根本性问题。
+当前 50 / 100 / 200 epoch 对比显示：
 
-### 第三优先级
-补全 checkpoint、resume、日志记录等训练基础设施。
+| 版本 | 重建能力 | few-shot embedding |
+| --- | --- | --- |
+| 50 epoch | 较好 | 当前最好 |
+| 100 epoch | 更好 | 下降 |
+| 200 epoch | 最好 | 继续下降 |
 
-### 第四优先级
-在完整数据集上建立第一版单卡 baseline。
+这说明模型继续训练后更偏向 decoder 重建目标，但冻结 embedding 接简单任务头的能力下降。
 
----
+因此，如果目标是通用 embedding，下一阶段的核心不是继续单纯拉长 epoch，而是让训练目标更直接服务于 embedding。
+
+## 下一阶段：v1.3 embedding-first 优化
+
+### 目标
+
+训练一个更适合冻结后接简单任务头的雅江多模态 embedding。
+
+### 完成标准
+
+- few-shot AEF 指标稳定超过 composite baseline；
+- WorldCover / DEM / JRC binary 至少两个任务有正向 delta；
+- 1/5/10/50-shot 曲线稳定，不只在高 shot 下有效；
+- 重建指标不严重退化；
+- 有固定 eval manifest 或固定 benchmark 支持 checkpoint selection。
+
+### 优先事项
+
+#### 1. 建立 embedding-first checkpoint selection
+
+训练过程中定期评测中间 checkpoint，不只保存训练 loss 最低的 `best.pt`。
+
+建议指标：
+
+```text
+mean downstream delta
+WorldCover few-shot macro F1
+DEM few-shot R2
+cross-shot stability
+```
+
+#### 2. 真实下游任务头 benchmark
+
+当前 probe 使用 WorldCover / DEM / JRC 作为诊断任务。后续应补充更接近应用场景的轻量任务头，例如：
+
+```text
+河谷/水体识别
+裸地/建设用地区分
+高程分层
+植被覆盖等级
+滑坡或地灾相关样本
+```
+
+#### 3. 调整训练目标
+
+候选方向：
+
+- 降低 decoder 重建 loss 权重；
+- 增加 embedding 对比学习或跨模态 alignment；
+- 加入 masked source reconstruction；
+- 使用 projection head，把 decoder-specific 信息和 embedding 表征解耦；
+- 阶段性冻结 decoder 或 encoder，观察 downstream probe 变化。
+
+#### 4. 扩展 baseline
+
+当前主要比较 AEF vs composite。后续增加：
+
+```text
+S2-only
+S1-only
+Landsat-only
+S2+S1
+S2+S1+Landsat composite
+```
+
+这样能判断 AEF 的增益来自模型表征，而不是简单多源拼接。
+
+#### 5. 独立 eval manifest
+
+当前评测是 diagnostic on supplied manifest。下一步应准备独立评测集：
+
+```text
+新区域
+新时间段
+人工标注样本
+任务特定样本
+```
+
+## 建议开发顺序
+
+1. 固定当前 v1.2 三个 checkpoint 和评测结果；
+2. 写一个 metrics 汇总脚本，自动对比多个 `outputs/model_eval/*/metrics.json`；
+3. 增加 checkpoint probe 流程；
+4. 设计 v1.3 训练目标；
+5. 跑 50 epoch 对照实验；
+6. 如果 downstream probe 提升，再考虑 100/200 epoch；
+7. 建立独立 eval manifest。
+
+## 当前可用命令
+
+训练：
+
+```bash
+cd /data/heyuhang/yajiang-aef
+conda activate hyh-dl
+
+bash scripts/run_v1_2.sh
+bash scripts/run_v1_2_continue_100.sh
+bash scripts/run_v1_2_continue_200.sh
+```
+
+评测：
+
+```bash
+bash scripts/run_eval_suite_v1_2.sh
+bash scripts/run_eval_suite_v1_2_continue_100.sh
+bash scripts/run_eval_suite_v1_2_continue_200.sh
+```
 
 ## 备注
 
-当前版本规划的核心原则是：
-
-**先把训练链路做对，再把训练规模做大；先把 baseline 建起来，再谈加速和优化。**
-
-这套节奏更适合长期迭代，也更适合当前项目的实际进展。
+历史文档中仍有 `/workspace/...`、Ascend/NPU、v0.2/v0.3 相关路径。这些内容表示当时实验环境，不代表当前主线。当前主线以 README、CLAUDE.md、`docs/experiments/v1.2_a800.md` 和本 roadmap 为准。

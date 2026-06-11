@@ -1,105 +1,226 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code and other coding agents when working in this repository.
 
 ## Project overview
 
-Yajiang-AEF is an AlphaEarth-style multimodal spatiotemporal remote sensing representation learning project for the Yajiang (雅江) region. The model takes multi-temporal Sentinel-2, Sentinel-1, and Landsat imagery as input, produces a vMF-bottlenecked AEF embedding map, and learns to reconstruct DEM, WorldCover, and JRC Water targets. The embedding is evaluated via few-shot linear probe on downstream tasks.
+Yajiang-AEF is an AlphaEarth-style multimodal spatiotemporal remote sensing representation learning project for the Yajiang region. The model takes multi-temporal Sentinel-2, Sentinel-1, and Landsat imagery as input, produces a vMF-bottlenecked AEF embedding map, and learns to reconstruct DEM, WorldCover, and JRC Water targets.
 
-**Hardware**: Huawei Ascend NPU environment (primary), with CUDA fallback. Production training uses NPU IDs 4,5,6,7 in a Docker container at `/workspace/hyh/yajiang-aef`.
+The intended application is not only reconstruction. The main goal is to learn a regional multimodal embedding that can be frozen and reused with simple downstream task heads. For model selection, few-shot / linear-probe downstream metrics are more important than reconstruction loss alone.
+
+Current primary training environment:
+
+```text
+Path: /data/heyuhang/yajiang-aef
+Conda env: hyh-dl
+Hardware: NVIDIA A800, normally 8 CUDA GPUs
+Primary config: configs/yajiang_v1_2.yaml
+```
+
+Ascend/NPU scripts and historical docs remain in the repository for reproducibility of older v0.2/v0.3 experiments, but CUDA/A800 is the current mainline.
 
 ## Commands
 
+### Environment
+
+```bash
+cd /data/heyuhang/yajiang-aef
+conda activate hyh-dl
+```
+
 ### Training
+
 ```bash
-# v0.3c (S2 + S1 → DEM / WorldCover / JRC Water), 4-card DDP
-bash scripts/run_v0_3_c.sh
-# v1.1 (S2 + S1 + Landsat → same targets)
-bash scripts/run_v1_1.sh
-# Explicit NPU selection
-NPU_IDS=4,5,6,7 NPROC_PER_NODE=4 bash scripts/run_v0_3_c.sh
+# v1.2, 50 epochs, 8-card CUDA DDP by default
+bash scripts/run_v1_2.sh
+
+# Continue v1.2 from 50 to 100 epochs
+bash scripts/run_v1_2_continue_100.sh
+
+# Continue v1.2 from 100 to 200 epochs
+bash scripts/run_v1_2_continue_200.sh
 ```
 
-Training output goes to `outputs/aef_hyh_yajiang_v0_3_c/` with checkpoints (`best.pt`, `final.pt`, `latest.pt`) and deploy export.
+GPU selection:
 
-### Data preparation
 ```bash
-python scripts/prepare_landsat_npy.py --skip-existing   # Convert Landsat raw → .npy
-python scripts/build_full_manifest.py                     # Rebuild train.jsonl manifest
+GPU_IDS=0,1,2,3,4,5,6,7 bash scripts/run_v1_2.sh
+CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/run_v1_2.sh
+NPROC_PER_NODE=4 CUDA_VISIBLE_DEVICES=0,1,2,3 bash scripts/run_v1_2.sh
 ```
+
+Resume manually:
+
+```bash
+torchrun --nproc_per_node=8 --master_port=29614 scripts/train_with_manifest.py \
+  --config configs/yajiang_v1_2_continue_200.yaml \
+  --manifest data/full_npy/train.jsonl \
+  --resume outputs/aef_hyh_yajiang_v1_2_continue_100/checkpoints/best.pt \
+  --device auto
+```
+
+Training outputs go to:
+
+```text
+outputs/aef_hyh_yajiang_v1_2/
+outputs/aef_hyh_yajiang_v1_2_continue_100/
+outputs/aef_hyh_yajiang_v1_2_continue_200/
+```
+
+Each contains `checkpoints/{best,final,latest}.pt`, `exports/*_deploy.pt`, and logs.
 
 ### Evaluation
+
 ```bash
-bash scripts/run_eval_suite_v0_3_c.sh                     # Runs reconstruction + downstream eval
-MAX_PATCHES=256 bash scripts/run_eval_suite_v0_3_c.sh     # With more patches
+bash scripts/run_eval_suite_v1_2.sh
+bash scripts/run_eval_suite_v1_2_continue_100.sh
+bash scripts/run_eval_suite_v1_2_continue_200.sh
 ```
 
-### Demo server
+Override evaluation scale:
+
 ```bash
-bash scripts/run_demo_server.sh                           # Starts Gradio on port 7860
-pkill -f scripts/serve_demo.py                            # Stop it
+MAX_PATCHES=1024 BATCH_SIZE=4 MAX_PIXELS_PER_PATCH=256 \
+bash scripts/run_eval_suite_v1_2_continue_200.sh
 ```
 
-### Single-process training (debug / single-card)
+Evaluation outputs:
+
+```text
+outputs/model_eval/v1_2/
+outputs/model_eval/v1_2_continue_100/
+outputs/model_eval/v1_2_continue_200/
+```
+
+Important outputs are `metrics.json`, `report.md`, `report.html`, `fewshot_curves.png`, and `demo_panels/*.png`.
+
+### Data preparation
+
 ```bash
-PYTHONPATH=/workspace/hyh/yajiang-aef ASCEND_RT_VISIBLE_DEVICES=4 \
-python scripts/train_with_manifest.py \
-  --config configs/yajiang_v0_3_c.yaml \
-  --manifest data/full_npy/train.jsonl
+python scripts/build_full_manifest.py
+python scripts/prepare_landsat_npy.py \
+  --src-root /path/to/raw/yajiang/landsat \
+  --dst-root data/full_npy \
+  --skip-existing
+python scripts/prepare_jrc_water_npy.py \
+  --src-root /path/to/raw/yajiang/jrc_water \
+  --dst-root data/full_npy \
+  --skip-existing
+```
+
+Some older preparation scripts still have `/workspace/...` defaults from previous machines and require GIS dependencies such as `rasterio` or `opencv-python`. Prefer explicit source and destination arguments when re-running data conversion on a new host.
+
+### Quick checks
+
+```bash
+python -m py_compile \
+  scripts/train_with_manifest.py \
+  scripts/build_full_manifest.py \
+  src/data/dataset.py \
+  src/models/model.py \
+  src/models/sensor_encoders.py \
+  src/training/losses.py \
+  src/training/trainer.py
 ```
 
 ## Architecture
 
 ### Data flow
-```
+
+```text
 S2 / S1 / Landsat .npy frames
-  → YajiangAEFDataset (reads JSONL manifest, loads per-patch .npy files)
-  → source_frames [B, S, T, C, H, W] with masks, timestamps, type_ids
-  → AEFModel.forward()
-  → AEFOutput (embedding_map, embedding, reconstructions dict)
-  → compute_total_loss() (reconstruction + regularity losses)
+  -> YajiangAEFDataset
+  -> source_frames [B, S, T, C, H, W] with masks, timestamps, type_ids
+  -> AEFModel.forward()
+  -> AEFOutput(embedding_map, embedding, reconstructions)
+  -> compute_total_loss()
 ```
 
 ### Model internals (`src/models/`)
 
-1. **SensorEncoderBank** (`sensor_encoders.py`): One per-source adapter (1x1 conv if channel mismatch) → stem conv (stride 2) → projection. Source types: s2=0, s1=1, hls=2, landsat=3. Output spatial size is H/2 × W/2.
-
-2. **STPBlock** (`blocks.py`): Space-Time-Precision block. Three parallel paths — precision (2D conv), time (downsample → multihead attention over time → upsample), space (downsample → multihead attention over space → upsample) — fused with residual. Frame mask controls which temporal positions attend.
-
-3. **Time encoding** (`time_encoding.py`): `TimeCodeEncoder` (sinusoidal encoding of absolute timestamps), `WindowCodeEncoder` (encodes valid_start/end range), `RelativeTimeCodeEncoder` (sinusoidal encoding of [0,1] relative position).
-
-4. **VMFBottleneck** (`bottleneck.py`): 1×1 conv to embedding_dim. Training: adds Gaussian noise scaled by 1/√kappa, skips L2 normalization (to preserve magnitude information). Inference: L2-normalizes + vMF sampling. Outputs both per-pixel `embedding_map` [B, D, H, W] and pooled `embedding` vector [B, D].
-
-5. **Decoders** (`decoders.py`): `ContinuousDecoder` for DEM, `CategoricalDecoder` for WorldCover/JRC Water. Each uses `ConditionInjector` to gate window_code + relative_time + metadata into the embedding_map, then a small conv head.
-
-6. **Losses** (`training/losses.py`): `compute_total_loss()` — L1 for continuous targets, cross-entropy (ignore_index=255) for categorical. Plus optional regularity losses: uniformity (Wang & Isola), batch variance, decorrelation, orthogonality. Weighted by `reconstruction_weight`, `uniformity_weight`, etc. from config.
+1. `SensorEncoderBank` (`sensor_encoders.py`): one per-source adapter and stride-2 stem. Source types: `s2=0`, `s1=1`, `hls=2`, `landsat=3`. Output spatial size is H/2 x W/2.
+2. `STPBlock` (`blocks.py`): Space-Time-Precision block with precision, time, and space paths fused through residual blocks.
+3. Time/window encoding (`time_encoding.py`): absolute time, valid window, and relative time encoders. In v1.2, absolute `time_encoder` is frozen unless `model.use_time_codes: true`.
+4. `VMFBottleneck` (`bottleneck.py`): 1x1 projection to `embedding_dim`. Training can skip L2 normalization; inference produces normalized embedding maps.
+5. Decoders (`decoders.py`): continuous decoder for DEM and categorical decoders for WorldCover / JRC Water.
 
 ### Data system (`src/data/`)
-- **Manifest** (`manifest.py`): JSONL with one record per patch. Each record has `sample_id`, `valid_start_ms`, `valid_end_ms`, `inputs` (per-source frame paths + timestamps), `targets` (paths + relative_time + metadata), `split`.
-- **Dataset** (`dataset.py`): `YajiangAEFDataset` loads .npy/.npz/.pt files, ensures CHW layout, center-crops/pads to `image_size`, builds padded tensors for `max_frames` per source. Targets are loaded at H/2 resolution (decoder output size).
 
-### Training (`src/training/trainer.py`)
-`Trainer.fit()` loops epochs, calls `train_one_epoch()` which: autocasts (bf16 on NPU, fp16 + GradScaler on CUDA), computes loss via `compute_total_loss()`, clips gradients, and steps optimizer. Saves `best.pt`, `final.pt`, `latest.pt`, and exports a deploy model (weights + config as dict).
+The manifest is JSONL with one record per patch. Each record contains:
 
-### Evaluation (`src/eval/`)
-- `features.py`: `extract_aef_embedding_map()` runs the deployed model to get embedding maps; `extract_composite_map()` builds a per-source temporal-average baseline.
-- `metrics.py`: Reconstruction metrics (MAE, R2, macro F1, IoU, boundary F1) and few-shot linear probe.
-- `sampling.py`: Stratified pixel sampling for downstream evaluation.
-- `baselines.py`: Composite baseline feature extraction.
+```text
+sample_id
+valid_start_ms / valid_end_ms
+inputs[source].frames[path, timestamp_ms]
+targets[name].path
+split
+```
 
-### Distributed training (`src/utils/distributed.py`)
-`DistributedState` dataclass reads WORLD_SIZE/RANK/LOCAL_RANK from env. `init_distributed()` selects backend: hccl for NPU, nccl for CUDA, gloo for CPU.
+`YajiangAEFDataset` loads `.npy/.npz/.pt`, normalizes sources according to `data.source_preprocessing`, pads temporal frames to `max_frames`, and resizes targets to decoder output resolution.
 
-### Device resolution (`src/utils/device.py`)
-`resolve_device("auto")` tries NPU first (via `torch_npu`), then CUDA, then CPU. `build_grad_scaler()` only returns a GradScaler for CUDA+fp16.
+### Training (`src/training/`)
 
-### Config system (`src/config.py`)
-`load_config()` reads YAML, converts to `SimpleNamespace` recursively. Config has sections: `experiment` (name, seed, output_dir), `data` (batch_size, input_sources, target_sources, manifest), `model` (dims, channels, vMF kappa, source_channels), `training` (epochs, lr, loss weights), `evaluation`.
+`Trainer.fit()` supports:
+
+- CUDA bf16 autocast through `training.amp` and `training.amp_dtype`;
+- resume via `--resume`;
+- optimizer/scaler/state loading from checkpoint;
+- saving `best.pt`, `latest.pt`, `final.pt`;
+- exporting deploy model after training.
+
+`scripts/train_with_manifest.py` configures CUDA speedups:
+
+```text
+TF32 matmul/cudnn
+cudnn.benchmark
+DataLoader persistent_workers / prefetch_factor / drop_last
+DDP find_unused_parameters from config
+```
+
+### Losses (`src/training/losses.py`)
+
+`compute_total_loss()` combines:
+
+- reconstruction loss;
+- per-target weights via `training.target_loss_weights`;
+- categorical class weights via `training.class_weights`;
+- regularizers: uniformity, variance, decorrelation, orthogonality.
+
+Categorical all-ignore patches return graph-preserving zero loss.
+
+### Evaluation (`src/eval/`, `scripts/evaluate_model_suite.py`)
+
+The standard suite evaluates:
+
+1. Reconstruction quality: DEM MAE/R2, WorldCover macro F1/IoU, JRC Water binary F1/IoU/boundary F1.
+2. Downstream probe quality: frozen AEF embedding vs composite baseline, with linear heads over 1/5/10/50 shot settings.
+
+For the project goal, prioritize:
+
+```text
+aef_linear
+composite_linear
+delta = aef_linear - composite_linear
+cross-shot stability
+```
+
+## Current experiment summary
+
+Same evaluation protocol, 512 patches:
+
+| Version | DEM R2 | WorldCover macro F1 | Embedding takeaway |
+| --- | ---: | ---: | --- |
+| v1.2 50 epoch | 0.9750 | 0.5736 | best downstream few-shot among current runs |
+| v1.2 continue 100 | 0.9845 | 0.6917 | better reconstruction, weaker embedding |
+| v1.2 continue 200 | 0.9889 | 0.7837 | best reconstruction, weakest downstream probe |
+
+Interpretation: decoder reconstruction keeps improving with longer training, but the embedding becomes less useful for simple task heads. Future model selection should use downstream probe metrics as the primary criterion.
 
 ## Key conventions
-- Timestamps in the manifest are in **milliseconds**.
-- Target spatial resolution is H/2 of input (due to one stride-2 stem conv in the sensor encoder).
-- Categorical targets use `ignore_index=255` for nodata regions (especially JRC Water).
-- Channels in `source_frames` tensor are padded to `max_input_channels`; only the first `source_channels[src]` channels carry valid data.
-- Deploy model format: dict with keys `model` (state_dict), `config` (serialized cfg), `epoch`, `global_step`, `format: "aef_deploy_v1"`.
-- The NPU environment uses `ASCEND_RT_VISIBLE_DEVICES` instead of `CUDA_VISIBLE_DEVICES`.
+
+- Timestamps are in milliseconds.
+- Target spatial resolution is H/2 of input because the sensor stem has stride 2.
+- Categorical targets use `ignore_index=255`.
+- Channels in `source_frames` are padded to `max_input_channels`; only the first `source_channels[src]` channels are valid.
+- Deploy model format is a dict with `model`, `config`, `epoch`, `global_step`, and `format: aef_deploy_v1`.
+- Current CUDA scripts use `CUDA_VISIBLE_DEVICES`; old Ascend scripts use `ASCEND_RT_VISIBLE_DEVICES`.

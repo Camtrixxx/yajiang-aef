@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from .manifest import ManifestRecord, load_manifest
@@ -75,6 +76,9 @@ class YajiangAEFDataset(Dataset):
             self.source_channels = vars(source_channels)
 
         self.max_input_channels = max(self.source_channels.values())
+        self.source_preprocessing = self._namespace_to_dict(
+            getattr(cfg.data, "source_preprocessing", {})
+        )
 
         # target 配置表
         self.target_cfg_map: dict[str, Any] = {}
@@ -84,6 +88,15 @@ class YajiangAEFDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.records)
+
+    def _namespace_to_dict(self, obj: Any) -> Any:
+        if hasattr(obj, "__dict__"):
+            return {k: self._namespace_to_dict(v) for k, v in vars(obj).items()}
+        if isinstance(obj, dict):
+            return {k: self._namespace_to_dict(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._namespace_to_dict(v) for v in obj]
+        return obj
 
     def _load_array(self, path: str | Path) -> torch.Tensor:
         path = Path(path)
@@ -169,6 +182,57 @@ class YajiangAEFDataset(Dataset):
 
         return x
 
+    def _resize_chw(self, x: torch.Tensor, size: int, mode: str) -> torch.Tensor:
+        if x.shape[-2:] == (size, size):
+            return x
+        interp_mode = "nearest" if mode == "nearest" else "bilinear"
+        kwargs = {}
+        if interp_mode == "bilinear":
+            kwargs["align_corners"] = False
+        return F.interpolate(
+            x.unsqueeze(0),
+            size=(size, size),
+            mode=interp_mode,
+            **kwargs,
+        ).squeeze(0)
+
+    def _fit_spatial_size(
+        self,
+        x: torch.Tensor,
+        size: int,
+        mode: str = "continuous",
+        strategy: str = "crop_pad",
+    ) -> torch.Tensor:
+        if strategy == "resize":
+            return self._resize_chw(x, size=size, mode="nearest" if mode == "categorical" else "bilinear")
+        return self._center_crop_or_pad(x, size=size, mode=mode)
+
+    def _normalize_source(self, x: torch.Tensor, src_name: str) -> torch.Tensor:
+        cfg = self.source_preprocessing.get(src_name, {})
+        norm = cfg.get("normalization", "none")
+
+        if "clip" in cfg:
+            lo, hi = cfg["clip"]
+            x = x.clamp(float(lo), float(hi))
+
+        if norm == "scale":
+            scale = float(cfg.get("scale", 1.0))
+            if scale == 0:
+                raise ValueError(f"source_preprocessing.{src_name}.scale must be non-zero")
+            x = x / scale
+        elif norm == "standardize":
+            mean = cfg.get("mean", 0.0)
+            std = cfg.get("std", 1.0)
+            mean_t = torch.as_tensor(mean, dtype=x.dtype).view(-1, 1, 1)
+            std_t = torch.as_tensor(std, dtype=x.dtype).view(-1, 1, 1).clamp_min(1e-6)
+            x = (x - mean_t) / std_t
+        elif norm == "none":
+            pass
+        else:
+            raise ValueError(f"Unsupported normalization for source '{src_name}': {norm}")
+
+        return x
+
     def _build_source_tensor(self, rec: ManifestRecord):
         num_sources = len(self.input_sources)
         h = w = self.image_size
@@ -201,7 +265,15 @@ class YajiangAEFDataset(Dataset):
             for t_idx, frame_info in enumerate(frames):
                 arr = self._load_array(frame_info["path"])
                 arr = self._ensure_chw(arr, expect_channels=expected_c)
-                arr = self._center_crop_or_pad(arr, size=self.image_size, mode="continuous")
+                src_cfg = self.source_preprocessing.get(src_name, {})
+                fit_strategy = src_cfg.get("fit", "crop_pad")
+                arr = self._fit_spatial_size(
+                    arr,
+                    size=self.image_size,
+                    mode="continuous",
+                    strategy=fit_strategy,
+                )
+                arr = self._normalize_source(arr, src_name)
 
                 # 写到前 expected_c 通道，剩余通道保持 0
                 source_frames[s_idx, t_idx, :expected_c] = arr
@@ -237,7 +309,7 @@ class YajiangAEFDataset(Dataset):
 
             arr = self._load_array(payload["path"])
             arr = self._ensure_chw(arr, expect_channels=None)
-            arr = self._center_crop_or_pad(arr, size=target_h, mode=loss_type)
+            arr = self._fit_spatial_size(arr, size=target_h, mode=loss_type, strategy="resize")
 
             if loss_type == "categorical":
                 # 期望 [1, H, W] 或 one-hot；这里统一成 [1, H, W] long

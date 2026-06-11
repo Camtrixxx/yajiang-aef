@@ -1,12 +1,12 @@
 experiment:
   name: aef_hyh_yajiang_v1_1
   seed: 42
-  output_dir: /workspace/hyh/yajiang-aef/outputs/aef_hyh_yajiang_v1_1
+  output_dir: outputs/aef_hyh_yajiang_v1_1
 
 data:
   dataset_type: yajiang_open
-  manifest_path: /workspace/hyh/yajiang-aef/data/full_npy/train.jsonl
-  stats_dir: /workspace/statistics/yajiang_open
+  manifest_path: data/full_npy/train.jsonl
+  stats_dir: data/statistics/yajiang_open
 
   batch_size: 2
   num_workers: 4
@@ -58,6 +58,8 @@ model:
 
 training:
   epochs: 50
+  amp: true
+  amp_dtype: bf16
   lr: 0.0001
   weight_decay: 0.01
   grad_clip_norm: 1.0

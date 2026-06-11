@@ -131,7 +131,7 @@ class SensorEncoderBank(nn.Module):
                 enc = enc.reshape(group_b, t, d, hh, ww)
 
                 if slot_encoded is None:
-                    slot_encoded = source_frames.new_zeros(b, t, d, hh, ww)
+                    slot_encoded = enc.new_zeros(b, t, d, hh, ww)
                 slot_encoded[batch_mask] = enc
 
             if slot_encoded is None:

@@ -29,6 +29,7 @@ cache/
 tmp/
 kernel_meta/
 fusion_result.json
+docs/ui/
 
 # Model files
 *.pt

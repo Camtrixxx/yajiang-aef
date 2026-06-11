@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -57,6 +58,7 @@ def categorical_recon_loss(
     target: torch.Tensor,
     ignore_index: int = IGNORE_INDEX,
     mask: torch.Tensor | None = None,
+    class_weight: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
     分类重建损失。
@@ -87,9 +89,41 @@ def categorical_recon_loss(
     # 这里直接返回 0 loss，避免 jrc_water 某些 patch 全部无效时训练炸掉。
     valid = target != ignore_index
     if valid.sum() == 0:
-        return logits.new_tensor(0.0)
+        return logits.sum() * 0.0
 
-    return F.cross_entropy(logits, target, ignore_index=ignore_index)
+    if class_weight is not None:
+        class_weight = class_weight.to(device=logits.device, dtype=logits.dtype)
+
+    return F.cross_entropy(
+        logits,
+        target,
+        weight=class_weight,
+        ignore_index=ignore_index,
+    )
+
+
+def _namespace_to_dict(obj: Any) -> Any:
+    if hasattr(obj, "__dict__"):
+        return {k: _namespace_to_dict(v) for k, v in vars(obj).items()}
+    if isinstance(obj, dict):
+        return {k: _namespace_to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_namespace_to_dict(v) for v in obj]
+    return obj
+
+
+def _get_named_float(mapping: Any, name: str, default: float) -> float:
+    mapping = _namespace_to_dict(mapping)
+    if not isinstance(mapping, dict):
+        return default
+    return float(mapping.get(name, default))
+
+
+def _get_class_weight(training_cfg: Any, target_name: str, device: torch.device) -> torch.Tensor | None:
+    weights = _namespace_to_dict(getattr(training_cfg, "class_weights", {}))
+    if not isinstance(weights, dict) or target_name not in weights:
+        return None
+    return torch.tensor(weights[target_name], device=device, dtype=torch.float32)
 
 
 def embedding_uniformity_loss(emb: torch.Tensor, t: float = 2.0) -> torch.Tensor:
@@ -152,6 +186,7 @@ def compute_total_loss(model_output, batch: dict, cfg) -> LossOutput:
     training_cfg = cfg.training
 
     recon_weight = getattr(training_cfg, "reconstruction_weight", 1.0)
+    target_loss_weights = getattr(training_cfg, "target_loss_weights", {})
     uniformity_weight = getattr(training_cfg, "uniformity_weight", 0.0)
     variance_weight = getattr(training_cfg, "variance_weight", 0.0)
     decorrelation_weight = getattr(training_cfg, "decorrelation_weight", 0.0)
@@ -176,12 +211,15 @@ def compute_total_loss(model_output, batch: dict, cfg) -> LossOutput:
                 target,
                 ignore_index=IGNORE_INDEX,
                 mask=mask,
+                class_weight=_get_class_weight(training_cfg, name, pred.device),
             )
         else:
             cur = continuous_recon_loss(pred, target, mask=mask)
 
+        target_weight = _get_named_float(target_loss_weights, name, 1.0)
         losses[f"recon/{name}"] = cur
-        recon_total = recon_total + cur
+        losses[f"recon_weighted/{name}"] = cur * target_weight
+        recon_total = recon_total + cur * target_weight
 
     losses["recon/total"] = recon_total
 

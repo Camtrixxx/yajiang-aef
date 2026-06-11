@@ -101,6 +101,7 @@ class Trainer:
         payload = {
             "epoch": self.state.epoch,
             "global_step": self.state.global_step,
+            "best_loss": self.state.best_loss,
             "model": self._state_dict(),
             "optimizer": self.optimizer.state_dict(),
         }
@@ -109,6 +110,36 @@ class Trainer:
 
         torch.save(payload, ckpt_path)
         self._log(f"Saved checkpoint to {ckpt_path}")
+
+    def load_checkpoint(
+        self,
+        path: str | Path,
+        load_optimizer: bool = True,
+        override_optimizer_lr: bool = True,
+    ) -> None:
+        ckpt_path = Path(path)
+        payload = torch.load(ckpt_path, map_location="cpu")
+
+        model = self.model.module if hasattr(self.model, "module") else self.model
+        model.load_state_dict(payload["model"], strict=True)
+
+        if load_optimizer and "optimizer" in payload:
+            self.optimizer.load_state_dict(payload["optimizer"])
+            if override_optimizer_lr:
+                lr = float(getattr(self.cfg.training, "lr", self.optimizer.param_groups[0]["lr"]))
+                for group in self.optimizer.param_groups:
+                    group["lr"] = lr
+
+        if self.scaler is not None and "scaler" in payload:
+            self.scaler.load_state_dict(payload["scaler"])
+
+        self.state.epoch = int(payload.get("epoch", 0))
+        self.state.global_step = int(payload.get("global_step", 0))
+        self.state.best_loss = float(payload.get("best_loss", float("inf")))
+        self._log(
+            f"Loaded checkpoint from {ckpt_path} "
+            f"(epoch={self.state.epoch}, global_step={self.state.global_step})"
+        )
 
     def export_deploy_model(self, name: str = "deploy.pt"):
         if not self.distributed.is_main_process:
@@ -197,7 +228,7 @@ class Trainer:
         save_every = int(getattr(self.cfg.training, "save_every", 0))
         save_epoch_checkpoints = bool(getattr(self.cfg.training, "save_epoch_checkpoints", False))
 
-        for epoch in range(epochs):
+        for epoch in range(self.state.epoch, epochs):
             self.state.epoch = epoch + 1
             if hasattr(self.train_loader.sampler, "set_epoch"):
                 self.train_loader.sampler.set_epoch(epoch)

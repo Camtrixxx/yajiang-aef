@@ -1,15 +1,18 @@
 experiment:
-  name: aef_hyh_yajiang_v0_3_c
+  name: aef_hyh_yajiang_v1_2_continue_200
   seed: 42
-  output_dir: outputs/aef_hyh_yajiang_v0_3_c
+  output_dir: outputs/aef_hyh_yajiang_v1_2_continue_200
 
 data:
   dataset_type: yajiang_open
   manifest_path: data/full_npy/train.jsonl
   stats_dir: data/statistics/yajiang_open
 
-  batch_size: 2
-  num_workers: 4
+  batch_size: 4
+  num_workers: 8
+  persistent_workers: true
+  prefetch_factor: 4
+  drop_last: true
   image_size: 128
   max_frames: 16
   num_samples: 0
@@ -19,6 +22,26 @@ data:
   input_sources:
     - s2
     - s1
+    - landsat
+
+  source_preprocessing:
+    s2:
+      fit: crop_pad
+      normalization: standardize
+      clip: [0.0, 10000.0]
+      mean: 4934.0
+      std: 1315.0
+    s1:
+      fit: crop_pad
+      normalization: standardize
+      mean: -11.0
+      std: 4.7
+    landsat:
+      fit: resize
+      normalization: standardize
+      clip: [0.0, 50000.0]
+      mean: 21036.0
+      std: 5481.0
 
   target_sources:
     - name: dem
@@ -47,30 +70,44 @@ model:
   num_heads: 4
   vmf_kappa: 2000.0
   skip_l2_training: true
+  use_time_codes: false
   gradient_checkpointing: false
   decoder_hidden_mult: 1
 
   source_channels:
     s2: 6
     s1: 2
+    landsat: 6
 
 training:
-  epochs: 50
+  epochs: 200
   amp: true
   amp_dtype: bf16
-  lr: 0.0001
+  lr: 0.00005
   weight_decay: 0.01
   grad_clip_norm: 1.0
   log_interval: 20
+  allow_tf32: true
+  matmul_precision: high
+  cudnn_benchmark: true
+  find_unused_parameters: false
 
   save_epoch_checkpoints: false
   save_every: 0
 
   reconstruction_weight: 1.0
-  uniformity_weight: 0.01
-  variance_weight: 0.01
-  decorrelation_weight: 0.001
-  orthogonality_weight: 0.001
+  target_loss_weights:
+    dem: 0.5
+    worldcover: 2.0
+    jrc_water: 0.5
+
+  class_weights:
+    worldcover: [0.3, 0.8, 4.0, 4.0, 1.5, 0.8, 2.0, 1.2, 4.0]
+
+  uniformity_weight: 0.001
+  variance_weight: 0.001
+  decorrelation_weight: 0.0001
+  orthogonality_weight: 0.0001
 
 evaluation:
   knn_k: 5

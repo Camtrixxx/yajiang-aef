@@ -57,6 +57,9 @@ class AEFModel(nn.Module):
         )
 
         self.time_encoder = TimeCodeEncoder(m.time_code_dim)
+        if not getattr(m, "use_time_codes", False):
+            for p in self.time_encoder.parameters():
+                p.requires_grad_(False)
         self.window_encoder = WindowCodeEncoder(m.window_code_dim)
         self.relative_time_encoder = RelativeTimeCodeEncoder(m.relative_time_code_dim)
 
@@ -148,7 +151,8 @@ class AEFModel(nn.Module):
         if empty_mask.any():
             frame_mask = torch.where(empty_mask[:, None], effective_mask, frame_mask)
 
-        _time_codes = self.time_encoder(timestamps)   # 先保留，后续 loss 或 block 增强可用
+        if getattr(self.cfg.model, "use_time_codes", False):
+            _time_codes = self.time_encoder(timestamps)   # 先保留，后续 loss 或 block 增强可用
         window_code = self.window_encoder(valid_start_ms, valid_end_ms)
 
         x = frames

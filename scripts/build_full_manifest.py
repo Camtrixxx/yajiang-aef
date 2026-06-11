@@ -5,7 +5,8 @@ import datetime as dt
 import json
 from pathlib import Path
 
-DEFAULT_DATA_ROOT = Path("/workspace/hyh/yajiang-aef/data/full_npy")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DATA_ROOT = PROJECT_ROOT / "data" / "full_npy"
 DEFAULT_OUTPUT_PATH = DEFAULT_DATA_ROOT / "train.jsonl"
 
 INPUT_SOURCES = ["s2", "s1", "landsat"]

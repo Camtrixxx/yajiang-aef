@@ -44,6 +44,9 @@ reference/
 # Secrets
 agent/services/llm_provider.py
 
+# Agent runtime outputs (generated reports and assets)
+agent/reports/
+
 # Build
 build/
 dist/

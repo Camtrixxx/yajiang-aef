@@ -45,7 +45,7 @@
     .app {
       height: 100vh;
       display: grid;
-      grid-template-rows: 64px 1fr 132px;
+      grid-template-rows: 64px minmax(0, 1fr) auto;
       min-height: 0;
     }
 
@@ -281,7 +281,8 @@
     .composer-wrap {
       display: grid;
       place-items: center;
-      padding: 0 20px 20px;
+      padding: 0 20px max(20px, env(safe-area-inset-bottom));
+      min-height: 0;
     }
 
     .composer {
@@ -293,6 +294,8 @@
       padding: 12px;
       display: grid;
       gap: 10px;
+      max-height: min(34vh, 220px);
+      overflow: auto;
     }
 
     .toolbar {
@@ -345,6 +348,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+      padding-bottom: 2px;
     }
 
     .suggestion {
@@ -355,6 +359,7 @@
       color: #4b5563;
       cursor: pointer;
       font-size: 13px;
+      line-height: 1.25;
     }
 
     .input-row input {
@@ -488,7 +493,7 @@
 
     @media (max-width: 720px) {
       .app {
-        grid-template-rows: 56px 1fr auto;
+        grid-template-rows: 56px minmax(0, 1fr) auto;
       }
 
       .topbar {

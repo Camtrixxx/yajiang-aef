@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>遥感报告助手 - 单屏聊天原型</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1f2328;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #2563eb;
+      --primary-soft: #eef4ff;
+      --green: #16a34a;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.1), transparent 28%),
+        radial-gradient(circle at 82% 8%, rgba(22, 163, 74, 0.08), transparent 30%),
+        var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 64px 1fr 132px;
+      min-height: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+
+    .brand {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .status {
+      display: flex;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .status button {
+      border: 0;
+      background: transparent;
+      color: var(--primary);
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0;
+    }
+
+    .stage {
+      min-height: 0;
+      display: grid;
+      justify-items: center;
+      padding: 0 20px;
+      overflow: hidden;
+    }
+
+    .chat {
+      width: min(900px, 100%);
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    .intro {
+      text-align: center;
+      padding-top: 4px;
+    }
+
+    .intro h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    .intro p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .memory-strip {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .memory-strip span {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .messages {
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 4px 2px 22px;
+      scroll-behavior: smooth;
+      scrollbar-gutter: stable;
+    }
+
+    .messages::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .messages::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border: 3px solid transparent;
+      border-radius: 999px;
+      background-clip: content-box;
+    }
+
+    .messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .msg {
+      max-width: min(720px, 92%);
+      border-radius: 18px;
+      padding: 12px 14px;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .msg.agent {
+      align-self: flex-start;
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .msg.agent:has(.report-card) {
+      width: min(820px, 100%);
+      max-width: 100%;
+      border-radius: 16px;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .report-card {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .report-card h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .report-card p {
+      margin: 0;
+      color: #374151;
+    }
+
+    .report-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .report-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .report-links a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .intent-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .intent-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: #f8fafc;
+    }
+
+    .report-figure {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .report-figure img {
+      display: block;
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+    }
+
+    .report-figure figcaption {
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px;
+      background: #fbfcfe;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 15px;
+    }
+
+    .composer-wrap {
+      display: grid;
+      place-items: center;
+      padding: 0 20px 20px;
+    }
+
+    .composer {
+      width: min(900px, 100%);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .task-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag,
+    .map-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #374151;
+      border-radius: 999px;
+      padding: 7px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tag.active {
+      color: var(--primary);
+      border-color: #bdd2ff;
+      background: var(--primary-soft);
+      font-weight: 700;
+    }
+
+    .map-btn {
+      border-radius: 12px;
+      color: var(--green);
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      font-weight: 700;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 44px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .suggestion {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #fff;
+      color: #4b5563;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .input-row input {
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      outline: 0;
+      padding: 0 14px;
+      background: #fbfcfe;
+      font-size: 15px;
+    }
+
+    .send {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.28);
+      z-index: 10;
+    }
+
+    .modal-backdrop.show {
+      display: grid;
+    }
+
+    .modal {
+      width: min(780px, 100%);
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .modal-head {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-head strong {
+      font-size: 16px;
+    }
+
+    .close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 14px;
+    }
+
+    .map {
+      min-height: 310px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 30% 35%, rgba(22, 163, 74, 0.55) 0 12%, transparent 12.5%),
+        radial-gradient(ellipse at 70% 55%, rgba(234, 179, 8, 0.44) 0 15%, transparent 15.5%),
+        linear-gradient(118deg, transparent 0 44%, rgba(37, 99, 235, 0.48) 44.5% 47%, transparent 47.5%),
+        repeating-linear-gradient(36deg, rgba(255,255,255,0.16) 0 2px, transparent 2px 18px),
+        #dce8df;
+    }
+
+    .aoi {
+      position: absolute;
+      left: 28%;
+      top: 24%;
+      width: 40%;
+      height: 42%;
+      border: 3px solid #fff;
+      outline: 2px solid var(--primary);
+      background: rgba(37, 99, 235, 0.08);
+    }
+
+    .regions {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .region {
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 14px;
+      padding: 13px;
+      cursor: pointer;
+    }
+
+    .region.active {
+      border-color: #bdd2ff;
+      background: var(--primary-soft);
+    }
+
+    .region strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .region span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 720px) {
+      .app {
+        grid-template-rows: 56px 1fr auto;
+      }
+
+      .topbar {
+        padding: 0 16px;
+      }
+
+      .status {
+        display: none;
+      }
+
+      .intro h1 {
+        font-size: 24px;
+      }
+
+      .toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .modal-body {
+        grid-template-columns: 1fr;
+      }
+
+      .map {
+        min-height: 220px;
+      }
+
+      .report-stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .msg {
+        max-width: 96%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">遥感报告助手</div>
+      <div class="status">
+        <span>AEF v0.3c</span>
+        <span>模型在线</span>
+        <a href="/workflow" target="_blank" rel="noreferrer">节点编排</a>
+        <button id="resetSession" type="button">清空会话</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="chat">
+        <div class="intro">
+          <h1>一句话生成遥感分析报告</h1>
+          <p>先选择任务标签和区域，再用自然语言补充月份或继续对话。</p>
+          <div class="memory-strip" id="memoryStrip">
+            <span>会话：新建</span>
+            <span>状态：等待输入</span>
+          </div>
+        </div>
+
+        <div class="messages" id="messages">
+          <div class="msg agent">请选择任务类型和地图区域，然后输入你的需求。我会把结果直接返回在这里。</div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="composer-wrap">
+      <section class="composer">
+        <div class="toolbar">
+          <div class="task-tags">
+            <button class="tag active" data-task="地物分类">地物分类</button>
+            <button class="tag" data-task="水体分布">水体分布</button>
+            <button class="tag" data-task="高程地形">高程地形</button>
+          </div>
+          <button class="map-btn" id="openMap">选择地图：雅江区域</button>
+        </div>
+        <div class="input-row">
+          <input id="prompt" value="给我一份去年九月份的分析报告" aria-label="输入分析任务" />
+          <button class="send" id="send">→</button>
+        </div>
+        <div class="suggestions">
+          <button class="suggestion" data-prompt="给我一份分析报告">缺月份示例</button>
+          <button class="suggestion" data-prompt="去年十月份">补充月份</button>
+          <button class="suggestion" data-prompt="改成水体分布">修改任务</button>
+          <button class="suggestion" data-prompt="你能做什么？">普通对话</button>
+        </div>
+      </section>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop" id="mapModal">
+    <div class="modal">
+      <div class="modal-head">
+        <strong>选择地图区域</strong>
+        <button class="close" id="closeMap">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="map">
+          <div class="aoi" id="aoi"></div>
+        </div>
+        <div class="regions">
+          <button class="region active" data-region="雅江区域">
+            <strong>雅江区域</strong>
+            <span>山地、河谷、林草地、水体</span>
+          </button>
+          <button class="region" data-region="哈尔滨区域">
+            <strong>哈尔滨区域</strong>
+            <span>城市、耕地、松花江水系</span>
+          </button>
+          <button class="region" data-region="北京市海淀区">
+            <strong>北京市海淀区</strong>
+            <span>城市建设区、公园绿地、水体</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTask = "地物分类";
+    let currentRegion = "雅江区域";
+    const sessionId = (() => {
+      const existing = localStorage.getItem("yajiang_agent_session_id");
+      if (existing) return existing;
+      const created = `session_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem("yajiang_agent_session_id", created);
+      return created;
+    })();
+
+    const regionData = {
+      "雅江区域": {
+        main: "林地/草地",
+        box: ["28%", "24%", "40%", "42%"],
+        summary: "区域内林地、草地和裸地占比较高，水体主要沿河谷呈线状分布，适合用于山地生态和水体相关快速研判。"
+      },
+      "哈尔滨区域": {
+        main: "耕地/水体",
+        box: ["18%", "20%", "48%", "38%"],
+        summary: "区域内耕地和建设用地分布明显，水体沿松花江及支流展开，适合用于城市周边地表覆盖和水体格局研判。"
+      },
+      "北京市海淀区": {
+        main: "建设用地",
+        box: ["38%", "26%", "32%", "42%"],
+        summary: "区域内建设用地占比较高，绿地主要分布在西部山前地带和公园片区，水体呈局部斑块状分布。"
+      }
+    };
+
+    const messages = document.getElementById("messages");
+    const mapModal = document.getElementById("mapModal");
+    const openMap = document.getElementById("openMap");
+    const aoi = document.getElementById("aoi");
+
+    function addMessage(html, type) {
+      const node = document.createElement("div");
+      node.className = `msg ${type}`;
+      node.innerHTML = html;
+      messages.appendChild(node);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function updateMapLabel() {
+      openMap.textContent = `选择地图：${currentRegion}`;
+      const box = regionData[currentRegion].box;
+      aoi.style.left = box[0];
+      aoi.style.top = box[1];
+      aoi.style.width = box[2];
+      aoi.style.height = box[3];
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function renderReportCard(payload) {
+      const report = payload.report;
+      const analysis = payload.analysis;
+      const stats = report.metrics.map((metric) => `
+        <div class="stat">
+          <span>${escapeHtml(metric.label)}</span>
+          <strong>${escapeHtml(metric.value)}</strong>
+        </div>
+      `).join("");
+      const figures = report.charts.map((chart) => `
+        <figure class="report-figure">
+          <img src="${escapeHtml(chart.url)}" alt="${escapeHtml(chart.title)}" />
+          <figcaption>${escapeHtml(chart.caption)}</figcaption>
+        </figure>
+      `).join("");
+      return `
+        <div class="report-card">
+          <h2>${escapeHtml(report.title)}</h2>
+          <div class="intent-row">
+            <span class="intent-pill">任务：${escapeHtml(payload.intent.task)}</span>
+            <span class="intent-pill">地区：${escapeHtml(payload.intent.region)}</span>
+            <span class="intent-pill">时间：${escapeHtml(payload.intent.time_range)}</span>
+            <span class="intent-pill">意图来源：${escapeHtml(payload.intent.source)}</span>
+            <span class="intent-pill">文案：${escapeHtml(report.llm_provider)}</span>
+          </div>
+          <p>${escapeHtml(report.abstract)}</p>
+          <div class="report-stats">${stats}</div>
+          ${figures}
+          <p>${escapeHtml(analysis.findings[0] || "")}</p>
+          <p>${escapeHtml((analysis.narrative_blocks && analysis.narrative_blocks[0] && analysis.narrative_blocks[0].text) || "")}</p>
+          <div class="report-links">
+            <a href="${escapeHtml(report.html_url)}" target="_blank" rel="noreferrer">打开完整 HTML 报告</a>
+            <a href="${escapeHtml(report.markdown_url)}" target="_blank" rel="noreferrer">查看 Markdown</a>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateMemoryStrip(payload) {
+      const memory = payload.memory || {};
+      const intent = payload.intent || memory.current_intent || {};
+      const slots = memory.pending_slots || [];
+      document.getElementById("memoryStrip").innerHTML = `
+        <span>会话：${escapeHtml((payload.session_id || sessionId).slice(0, 18))}</span>
+        <span>状态：${escapeHtml(payload.status || memory.mode || "idle")}</span>
+        <span>任务：${escapeHtml(intent.task || currentTask)}</span>
+        <span>地区：${escapeHtml(intent.region || currentRegion)}</span>
+        <span>时间：${escapeHtml(intent.time_range || "待补充")}</span>
+        <span>缺失：${escapeHtml(slots.length ? slots.join(", ") : "无")}</span>
+      `;
+    }
+
+    function renderClarification(payload) {
+      return `
+        <div class="report-card">
+          <p>${escapeHtml(payload.message || "请补充关键信息。")}</p>
+          <div class="intent-row">
+            <span class="intent-pill">任务：${escapeHtml(payload.intent?.task || currentTask)}</span>
+            <span class="intent-pill">地区：${escapeHtml(payload.intent?.region || currentRegion)}</span>
+            <span class="intent-pill">缺失：${escapeHtml((payload.intent?.missing_fields || []).join(", ") || "未知")}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    async function sendMessage() {
+      const prompt = document.getElementById("prompt").value.trim();
+      const sendButton = document.getElementById("send");
+      if (!prompt) {
+        return;
+      }
+      sendButton.disabled = true;
+      addMessage(prompt || `生成${currentRegion}${currentTask}报告`, "user");
+      addMessage("正在理解你的意图并更新会话状态。", "agent");
+      try {
+        const response = await fetch("/api/report", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            session_id: sessionId,
+            task: currentTask,
+            region: currentRegion,
+            prompt: prompt
+          })
+        });
+        const payload = await response.json();
+        updateMemoryStrip(payload);
+        if (!response.ok || payload.status !== "ok") {
+          if (payload.status === "needs_input") {
+            messages.removeChild(messages.lastElementChild);
+            addMessage(renderClarification(payload), "agent");
+            return;
+          }
+          if (payload.status === "chat") {
+            messages.removeChild(messages.lastElementChild);
+            addMessage(`<p>${escapeHtml(payload.message || "我在。")}</p>`, "agent");
+            return;
+          }
+          throw new Error(payload.error || "报告生成失败");
+        }
+        messages.removeChild(messages.lastElementChild);
+        addMessage(renderReportCard(payload), "agent");
+      } catch (error) {
+        messages.removeChild(messages.lastElementChild);
+        addMessage(`
+          <div class="report-card">
+            <p>请求失败：${escapeHtml(error.message || "请检查后端服务是否在线。")}</p>
+          </div>
+        `, "agent");
+      } finally {
+        sendButton.disabled = false;
+        document.getElementById("prompt").value = "";
+        document.getElementById("prompt").focus();
+      }
+    }
+
+    async function resetSession() {
+      await fetch("/api/session/reset", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: sessionId})
+      });
+      messages.innerHTML = '<div class="msg agent">会话已清空。请选择任务类型和地图区域，然后继续输入需求。</div>';
+      updateMemoryStrip({status: "idle", session_id: sessionId, memory: {pending_slots: []}});
+    }
+
+    document.querySelectorAll(".tag").forEach((tag) => {
+      tag.addEventListener("click", () => {
+        document.querySelectorAll(".tag").forEach((item) => item.classList.remove("active"));
+        tag.classList.add("active");
+        currentTask = tag.dataset.task;
+      });
+    });
+
+    openMap.addEventListener("click", () => {
+      mapModal.classList.add("show");
+    });
+
+    document.getElementById("closeMap").addEventListener("click", () => {
+      mapModal.classList.remove("show");
+    });
+
+    mapModal.addEventListener("click", (event) => {
+      if (event.target === mapModal) {
+        mapModal.classList.remove("show");
+      }
+    });
+
+    document.querySelectorAll(".region").forEach((region) => {
+      region.addEventListener("click", () => {
+        document.querySelectorAll(".region").forEach((item) => item.classList.remove("active"));
+        region.classList.add("active");
+        currentRegion = region.dataset.region;
+        updateMapLabel();
+        mapModal.classList.remove("show");
+      });
+    });
+
+    document.querySelectorAll(".suggestion").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.getElementById("prompt").value = button.dataset.prompt;
+        sendMessage();
+      });
+    });
+
+    document.getElementById("resetSession").addEventListener("click", resetSession);
+    document.getElementById("send").addEventListener("click", sendMessage);
+    document.getElementById("prompt").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        sendMessage();
+      }
+    });
+
+    updateMapLabel();
+    updateMemoryStrip({status: "idle", session_id: sessionId, memory: {pending_slots: []}});
+  </script>
+</body>
+</html>

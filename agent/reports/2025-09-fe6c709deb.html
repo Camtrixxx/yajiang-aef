@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>北京市海淀区2025-09地物分类遥感分析报告</title>
+  <style>
+    body { margin: 0; background: #f4f6f8; color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    main { max-width: 980px; margin: 0 auto; padding: 34px 20px 54px; }
+    header { margin-bottom: 22px; }
+    h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: 0; }
+    .lead { margin: 0; color: #4b5563; line-height: 1.8; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 22px 0; }
+    .metric { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    .metric span, .metric small { display: block; color: #6b7280; font-size: 12px; }
+    .metric strong { display: block; margin: 7px 0; font-size: 19px; }
+    section, figure { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin: 14px 0; }
+    h2 { margin: 0 0 10px; font-size: 19px; }
+    p, li { line-height: 1.8; }
+    img { width: 100%; max-height: 420px; object-fit: contain; }
+    figcaption { margin-top: 8px; color: #6b7280; font-size: 13px; }
+    @media (max-width: 760px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>北京市海淀区2025-09地物分类遥感分析报告</h1>
+      <p class="lead">本报告围绕北京市海淀区在2025-09期间的地物分类需求展开，基于当前 mock 分析服务生成区域统计、图表与文字结论。本次分析聚焦北京市海淀区在2025-09期间的地物分类情况。建设用地占比较高，绿地分布在西部山前地带和公园片区。后续接入真实 AEF 分析服务后，可在保持报告结构不变的前提下替换模型推理结果。</p>
+    </header>
+    <div class="metrics"><div class="metric"><span>任务</span><strong>地物分类</strong><small>本次报告的主分析方向</small></div>
+<div class="metric"><span>主导类型</span><strong>建设用地</strong><small>当前 mock 分析的主导地表类型</small></div>
+<div class="metric"><span>平均置信度</span><strong>0.79</strong><small>后续接入 AEF 后替换为模型统计</small></div>
+<div class="metric"><span>有效像元</span><strong>94.9%</strong><small>当前使用规则模拟有效覆盖比例</small></div></div>
+    <figure><img src="/reports/assets/landcover_fe6c709debb5.png" alt="地表类型占比"><figcaption>当前图表由 mock 分析服务生成，用于验证图文报告版式和接口协议。</figcaption></figure>
+    <section><h2>一、分析概览</h2><p>本报告围绕北京市海淀区在2025-09期间的地物分类需求展开，基于当前 mock 分析服务生成区域统计、图表与文字结论。本次分析聚焦北京市海淀区在2025-09期间的地物分类情况。建设用地占比较高，绿地分布在西部山前地带和公园片区。后续接入真实 AEF 分析服务后，可在保持报告结构不变的前提下替换模型推理结果。</p></section><section><h2>二、主要发现</h2><ul><li>北京市海淀区整体呈现城市建设区特征，建设用地占比较高，绿地分布在西部山前地带和公园片区。</li><li>围绕“地物分类”任务，当前结果显示建设用地是最需要优先解释的空间类型。</li><li>图表与结论目前来自稳定 mock 服务，接口已经按真实分析服务的返回形态设计。</li></ul></section><section><h2>三、建议与后续工作</h2><ul><li>后续接入 AEF 模型后，建议保留当前报告结构，只替换 analysis_service 的数据来源。</li><li>正式报告应增加 AOI 边界、时间窗口、数据源清单和模型版本说明。</li><li>若用于业务交付，建议输出 HTML 与 PDF 两种格式，并保存结构化 JSON 便于复核。</li></ul></section>
+  </main>
+</body>
+</html>

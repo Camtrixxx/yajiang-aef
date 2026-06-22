@@ -30,6 +30,7 @@ tmp/
 kernel_meta/
 fusion_result.json
 docs/ui/
+reference/
 
 # Model files
 *.pt
@@ -39,6 +40,9 @@ docs/ui/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Secrets
+agent/services/llm_provider.py
 
 # Build
 build/

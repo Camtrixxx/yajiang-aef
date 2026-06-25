@@ -13,7 +13,7 @@ from agent.schemas.report import AnalysisResult, ReportArtifact, ReportRequest
 from agent.services.llm_provider import DeepSeekProvider, LLMProvider
 
 
-REPORT_TEMPLATE_VERSION = "agent-report-v2"
+REPORT_TEMPLATE_VERSION = "agent-report-v4"
 
 
 class ReportService:
@@ -30,7 +30,7 @@ class ReportService:
 
     def build(self, request: ReportRequest, analysis: AnalysisResult) -> ReportArtifact:
         title = f"{analysis.headline}报告"
-        slug = self._slug(f"{request.region}-{request.task}-{request.time_range}")
+        slug = self._slug(self._report_identity(request, analysis))
         html_path = self.report_dir / f"{slug}.html"
         md_path = self.report_dir / f"{slug}.md"
         if self.config.reuse_existing and self._can_reuse(html_path, md_path):
@@ -217,7 +217,16 @@ class ReportService:
             section_html.append(f"<section><h2>{html.escape(section['heading'])}</h2>{body}</section>")
 
         generated_at = html.escape(analysis.generated_at or datetime.now(timezone.utc).isoformat(timespec="seconds"))
-        data_source = "流程验证数据" if analysis.data_source == "prototype" else analysis.data_source
+        source_labels = {
+            "prototype": "流程验证数据",
+            "aef_inference": "真实 AEF 推理",
+        }
+        data_source = source_labels.get(analysis.data_source, analysis.data_source)
+        source_note = (
+            "说明：当前报告结构已按真实 AEF 接入设计；在正式模型接入前，指标用于流程验证和版式联调。"
+            if analysis.data_source == "prototype"
+            else "说明：当前报告已调用真实 AEF 推理服务；区域到 patch 的映射策略见标准化 AEF 调用字段。"
+        )
         return f"""<!doctype html>
 <!-- {REPORT_TEMPLATE_VERSION} -->
 <html lang="zh-CN">
@@ -269,7 +278,7 @@ class ReportService:
         <span>数据：{html.escape(data_source)}</span>
         <span>生成：{generated_at}</span>
       </div>
-      <p class="source">说明：当前报告结构已按真实 AEF 接入设计；在正式模型接入前，指标用于流程验证和版式联调。</p>
+      <p class="source">{html.escape(source_note)}</p>
     </header>
     <nav class="toc">
       <a href="#metrics">关键指标</a>
@@ -335,6 +344,16 @@ class ReportService:
         digest = re.sub(r"[^0-9a-zA-Z_-]+", "-", text).strip("-")
         suffix = hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
         return f"{digest}-{suffix}" if digest else f"report-{suffix}"
+
+    def _report_identity(self, request: ReportRequest, analysis: AnalysisResult) -> str:
+        fingerprint = ""
+        if isinstance(analysis.aef_payload, dict):
+            fingerprint = str(analysis.aef_payload.get("fingerprint") or "")
+        if not fingerprint:
+            fingerprint = hashlib.sha1(
+                json.dumps(analysis.aef_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            ).hexdigest()[:12]
+        return f"{request.region}-{analysis.task}-{request.time_range}-{analysis.data_source}-{fingerprint}"
 
     def _read_existing_abstract(self, md_path: Path) -> str:
         try:

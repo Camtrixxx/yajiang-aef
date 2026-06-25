@@ -45,7 +45,7 @@
     .app {
       height: 100vh;
       display: grid;
-      grid-template-rows: 64px minmax(0, 1fr) auto;
+      grid-template-rows: 64px minmax(0, 1fr);
       min-height: 0;
     }
 
@@ -83,11 +83,120 @@
       padding: 0;
     }
 
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 16px;
+      padding: 0 20px 0;
+      overflow: hidden;
+      transition: grid-template-columns 180ms ease;
+    }
+
+    .app.preview-open .workspace {
+      grid-template-columns: 240px minmax(0, 1.18fr) minmax(360px, 0.82fr);
+    }
+
+    .history-sidebar {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 12px;
+      overflow: hidden;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    .history-head {
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .history-head strong {
+      font-size: 15px;
+    }
+
+    .new-session {
+      height: 38px;
+      border: 1px solid #bdd2ff;
+      border-radius: 12px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .session-list {
+      min-height: 0;
+      overflow-y: auto;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      padding-right: 2px;
+    }
+
+    .session-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--text);
+      cursor: pointer;
+      padding: 10px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .session-item.active {
+      border-color: #bdd2ff;
+      background: #fff;
+      box-shadow: 0 8px 22px rgba(37, 99, 235, 0.12);
+    }
+
+    .session-item strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .session-item span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .session-empty {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      padding: 10px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .conversation-column {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+
     .stage {
       min-height: 0;
       display: grid;
       justify-items: center;
-      padding: 0 20px;
+      padding: 0;
       overflow: hidden;
     }
 
@@ -281,7 +390,7 @@
     .composer-wrap {
       display: grid;
       place-items: center;
-      padding: 0 20px max(20px, env(safe-area-inset-bottom));
+      padding: 0 0 max(20px, env(safe-area-inset-bottom));
       min-height: 0;
     }
 
@@ -296,6 +405,192 @@
       gap: 10px;
       max-height: min(34vh, 220px);
       overflow: auto;
+    }
+
+    .preview-pane {
+      min-width: 0;
+      min-height: 0;
+      display: none;
+      grid-template-rows: 54px minmax(0, 1fr);
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px 16px 0 0;
+      box-shadow: var(--shadow);
+    }
+
+    .app.preview-open .preview-pane {
+      display: grid;
+    }
+
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .preview-title {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .preview-title strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 15px;
+    }
+
+    .preview-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .preview-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .preview-actions a,
+    .preview-actions button {
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f8fafc;
+      color: #334155;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      place-items: center;
+      padding: 0 12px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .preview-actions a:hover,
+    .preview-actions button:hover {
+      background: #eef2f7;
+      border-color: #cbd5e1;
+    }
+
+    .preview-toggle {
+      min-width: 84px;
+      color: var(--primary);
+    }
+
+    .preview-close {
+      width: 34px;
+      padding: 0;
+      color: #374151;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .preview-body {
+      min-height: 0;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .preview-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    .markdown-preview {
+      height: 100%;
+      overflow: auto;
+      padding: 22px;
+      background: #fff;
+      line-height: 1.8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    .markdown-preview.raw {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .markdown-preview h1,
+    .markdown-preview h2,
+    .markdown-preview h3 {
+      margin: 18px 0 10px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .markdown-preview h1 {
+      font-size: 25px;
+    }
+
+    .markdown-preview h2 {
+      font-size: 20px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .markdown-preview h3 {
+      font-size: 16px;
+    }
+
+    .markdown-preview p {
+      margin: 8px 0;
+    }
+
+    .markdown-preview ul {
+      margin: 8px 0;
+      padding-left: 22px;
+    }
+
+    .markdown-preview li {
+      margin: 5px 0;
+    }
+
+    .markdown-preview img {
+      display: block;
+      max-width: 100%;
+      max-height: 360px;
+      object-fit: contain;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 10px 0;
+      background: #fff;
+    }
+
+    .markdown-preview pre {
+      overflow: auto;
+      background: #0f172a;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .markdown-preview code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    .preview-empty {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 14px;
     }
 
     .toolbar {
@@ -493,7 +788,20 @@
 
     @media (max-width: 720px) {
       .app {
-        grid-template-rows: 56px minmax(0, 1fr) auto;
+        grid-template-rows: 56px minmax(0, 1fr);
+      }
+
+      .workspace,
+      .app.preview-open .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .history-sidebar {
+        display: none;
+      }
+
+      .app.preview-open .conversation-column {
+        display: none;
       }
 
       .topbar {
@@ -543,45 +851,76 @@
       </div>
     </header>
 
-    <main class="stage">
-      <section class="chat">
-        <div class="intro">
-          <h1>一句话生成遥感分析报告</h1>
-          <p>先选择任务标签和区域，再用自然语言补充月份或继续对话。</p>
-          <div class="memory-strip" id="memoryStrip">
-            <span>会话：新建</span>
-            <span>状态：等待输入</span>
+    <div class="workspace">
+      <aside class="history-sidebar" aria-label="历史会话">
+        <div class="history-head">
+          <strong>历史会话</strong>
+          <button class="new-session" id="newSession" type="button">新建会话</button>
+        </div>
+        <div class="session-list" id="sessionList">
+          <div class="session-empty">暂无历史会话。</div>
+        </div>
+      </aside>
+
+      <div class="conversation-column">
+        <main class="stage">
+          <section class="chat">
+            <div class="intro">
+              <h1>一句话生成遥感分析报告</h1>
+              <p>先选择任务标签和区域，再用自然语言补充月份或继续对话。</p>
+              <div class="memory-strip" id="memoryStrip">
+                <span>会话：新建</span>
+                <span>状态：等待输入</span>
+              </div>
+            </div>
+
+            <div class="messages" id="messages">
+              <div class="msg agent">请选择任务类型和地图区域，然后输入你的需求。我会把结果直接返回在这里。</div>
+            </div>
+          </section>
+        </main>
+
+        <footer class="composer-wrap">
+          <section class="composer">
+            <div class="toolbar">
+              <div class="task-tags">
+                <button class="tag active" data-task="地物分类">地物分类</button>
+                <button class="tag" data-task="水体分布">水体分布</button>
+                <button class="tag" data-task="高程地形">高程地形</button>
+              </div>
+              <button class="map-btn" id="openMap">选择地图：雅江区域</button>
+            </div>
+            <div class="input-row">
+              <input id="prompt" value="给我一份去年九月份的分析报告" aria-label="输入分析任务" />
+              <button class="send" id="send">→</button>
+            </div>
+            <div class="suggestions">
+              <button class="suggestion" data-prompt="给我一份分析报告">缺月份示例</button>
+              <button class="suggestion" data-prompt="去年十月份">补充月份</button>
+              <button class="suggestion" data-prompt="改成水体分布">修改任务</button>
+              <button class="suggestion" data-prompt="你能做什么？">普通对话</button>
+            </div>
+          </section>
+        </footer>
+      </div>
+
+      <aside class="preview-pane" id="previewPane" aria-label="报告预览">
+        <div class="preview-head">
+          <div class="preview-title">
+            <strong id="previewTitle">报告预览</strong>
+            <span id="previewMeta">HTML / Markdown</span>
+          </div>
+          <div class="preview-actions">
+            <a id="previewOpenRaw" href="#" target="_blank" rel="noreferrer">新标签</a>
+            <button class="preview-toggle" id="toggleMarkdownRaw" type="button">原文</button>
+            <button class="preview-close" id="closePreview" type="button" aria-label="关闭预览">×</button>
           </div>
         </div>
-
-        <div class="messages" id="messages">
-          <div class="msg agent">请选择任务类型和地图区域，然后输入你的需求。我会把结果直接返回在这里。</div>
+        <div class="preview-body" id="previewBody">
+          <div class="preview-empty">点击报告链接后在这里查看内容。</div>
         </div>
-      </section>
-    </main>
-
-    <footer class="composer-wrap">
-      <section class="composer">
-        <div class="toolbar">
-          <div class="task-tags">
-            <button class="tag active" data-task="地物分类">地物分类</button>
-            <button class="tag" data-task="水体分布">水体分布</button>
-            <button class="tag" data-task="高程地形">高程地形</button>
-          </div>
-          <button class="map-btn" id="openMap">选择地图：雅江区域</button>
-        </div>
-        <div class="input-row">
-          <input id="prompt" value="给我一份去年九月份的分析报告" aria-label="输入分析任务" />
-          <button class="send" id="send">→</button>
-        </div>
-        <div class="suggestions">
-          <button class="suggestion" data-prompt="给我一份分析报告">缺月份示例</button>
-          <button class="suggestion" data-prompt="去年十月份">补充月份</button>
-          <button class="suggestion" data-prompt="改成水体分布">修改任务</button>
-          <button class="suggestion" data-prompt="你能做什么？">普通对话</button>
-        </div>
-      </section>
-    </footer>
+      </aside>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="mapModal">
@@ -615,7 +954,7 @@
   <script>
     let currentTask = "地物分类";
     let currentRegion = "雅江区域";
-    const sessionId = (() => {
+    let sessionId = (() => {
       const existing = localStorage.getItem("yajiang_agent_session_id");
       if (existing) return existing;
       const created = `session_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -642,9 +981,17 @@
     };
 
     const messages = document.getElementById("messages");
+    const sessionList = document.getElementById("sessionList");
     const mapModal = document.getElementById("mapModal");
     const openMap = document.getElementById("openMap");
     const aoi = document.getElementById("aoi");
+    const app = document.querySelector(".app");
+    const previewTitle = document.getElementById("previewTitle");
+    const previewMeta = document.getElementById("previewMeta");
+    const previewBody = document.getElementById("previewBody");
+    const previewOpenRaw = document.getElementById("previewOpenRaw");
+    const toggleMarkdownRaw = document.getElementById("toggleMarkdownRaw");
+    let currentMarkdownPreview = null;
 
     function addMessage(html, type) {
       const node = document.createElement("div");
@@ -652,6 +999,204 @@
       node.innerHTML = html;
       messages.appendChild(node);
       messages.scrollTop = messages.scrollHeight;
+    }
+
+    function createSessionId() {
+      return `session_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+
+    function setSessionId(nextSessionId) {
+      sessionId = nextSessionId;
+      localStorage.setItem("yajiang_agent_session_id", sessionId);
+    }
+
+    function renderInitialMessage(text = "请选择任务类型和地图区域，然后输入你的需求。我会把结果直接返回在这里。") {
+      messages.innerHTML = `<div class="msg agent">${escapeHtml(text)}</div>`;
+    }
+
+    function formatSessionTime(value) {
+      if (!value) {
+        return "";
+      }
+      const normalized = value.replace("Z", "");
+      const parts = normalized.split("T");
+      if (parts.length < 2) {
+        return value;
+      }
+      return `${parts[0]} ${parts[1].slice(0, 5)}`;
+    }
+
+    function renderSessionList(sessions) {
+      if (!sessions.length) {
+        sessionList.innerHTML = '<div class="session-empty">暂无历史会话。</div>';
+        return;
+      }
+      sessionList.innerHTML = sessions.map((session) => `
+        <button class="session-item ${session.session_id === sessionId ? "active" : ""}" data-session-id="${escapeHtml(session.session_id)}" type="button">
+          <strong>${escapeHtml(session.title || "新会话")}</strong>
+          <span>${escapeHtml(session.summary || session.last_user_message || "等待输入")}</span>
+          <span>${escapeHtml(formatSessionTime(session.updated_at))}</span>
+        </button>
+      `).join("");
+    }
+
+    async function refreshSessions() {
+      try {
+        const response = await fetch("/api/sessions?limit=40");
+        const payload = await response.json();
+        renderSessionList(payload.sessions || []);
+      } catch (error) {
+        sessionList.innerHTML = '<div class="session-empty">历史会话加载失败。</div>';
+      }
+    }
+
+    function messageToHtml(message) {
+      if (message.role === "user") {
+        return `<div class="msg user">${escapeHtml(message.content)}</div>`;
+      }
+      return `<div class="msg agent">${escapeHtml(message.content || "我在。")}</div>`;
+    }
+
+    function renderHistoryReportCard(report) {
+      const request = report.request || {};
+      const title = report.title || "历史报告";
+      return `
+        <div class="msg agent">
+          <div class="report-card">
+            <h2>${escapeHtml(title)}</h2>
+            <div class="intent-row">
+              <span class="intent-pill">任务：${escapeHtml(request.task || "未知")}</span>
+              <span class="intent-pill">地区：${escapeHtml(request.region || "未知")}</span>
+              <span class="intent-pill">时间：${escapeHtml(request.time_range || "未知")}</span>
+              <span class="intent-pill">来源：历史会话</span>
+            </div>
+            <p>这份报告来自当前历史会话，可以在右侧预览完整内容。</p>
+            <div class="report-links">
+              <a href="${escapeHtml(report.html_url)}" data-preview-url="${escapeHtml(report.html_url)}" data-preview-type="html" data-preview-title="${escapeHtml(title)}">打开完整 HTML 报告</a>
+              <a href="${escapeHtml(report.markdown_url)}" data-preview-url="${escapeHtml(report.markdown_url)}" data-preview-type="markdown" data-preview-title="${escapeHtml(title)}">查看 Markdown</a>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function eventTime(value) {
+      if (!value) {
+        return 0;
+      }
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function dedupeReports(reports) {
+      const seen = new Set();
+      return reports.filter((report) => {
+        const key = `${report.html_url || ""}|${report.markdown_url || ""}|${report.created_at || ""}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function restoreMessages(memory) {
+      const recent = memory.recent_messages || [];
+      const reports = dedupeReports(memory.reports || []);
+      if (!recent.length) {
+        messages.innerHTML = reports.length
+          ? reports.map(renderHistoryReportCard).join("")
+          : '<div class="msg agent">已切换到这个会话，可以继续输入需求。</div>';
+        messages.scrollTop = messages.scrollHeight;
+        return;
+      }
+      const events = recent.map((message, index) => ({
+        type: "message",
+        time: eventTime(message.created_at),
+        index,
+        message
+      }));
+      const reportEvents = reports.map((report, index) => ({
+        type: "report",
+        time: eventTime(report.created_at),
+        index,
+        report
+      }));
+      const insertedReports = new Set();
+
+      reportEvents.forEach((reportEvent) => {
+        let targetIndex = -1;
+        let targetDistance = Number.POSITIVE_INFINITY;
+        events.forEach((event, eventIndex) => {
+          if (event.type !== "message" || event.message.role !== "assistant") {
+            return;
+          }
+          if (!String(event.message.content || "").includes("报告已生成")) {
+            return;
+          }
+          const distance = Math.abs(event.time - reportEvent.time);
+          if (distance < targetDistance) {
+            targetDistance = distance;
+            targetIndex = eventIndex;
+          }
+        });
+        if (targetIndex >= 0) {
+          events.splice(targetIndex + 1, 0, reportEvent);
+          insertedReports.add(reportEvent.index);
+        }
+      });
+
+      reportEvents.forEach((reportEvent) => {
+        if (!insertedReports.has(reportEvent.index)) {
+          events.push(reportEvent);
+        }
+      });
+
+      messages.innerHTML = events.map((event) => (
+        event.type === "message" ? messageToHtml(event.message) : renderHistoryReportCard(event.report)
+      )).join("");
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function loadSession(nextSessionId) {
+      try {
+        const response = await fetch(`/api/session/${encodeURIComponent(nextSessionId)}`);
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.detail || "会话加载失败");
+        }
+        setSessionId(nextSessionId);
+        closePreview();
+        restoreMessages(payload.memory || {});
+        updateMemoryStrip({
+          status: payload.session?.mode || "idle",
+          session_id: sessionId,
+          memory: payload.memory || {},
+          intent: payload.session?.current_intent || {}
+        });
+        const intent = payload.session?.current_intent || {};
+        if (intent.task) {
+          currentTask = intent.task;
+          document.querySelectorAll(".tag").forEach((item) => item.classList.toggle("active", item.dataset.task === currentTask));
+        }
+        if (intent.region && regionData[intent.region]) {
+          currentRegion = intent.region;
+          document.querySelectorAll(".region").forEach((item) => item.classList.toggle("active", item.dataset.region === currentRegion));
+          updateMapLabel();
+        }
+        await refreshSessions();
+      } catch (error) {
+        addMessage(`<p>会话加载失败：${escapeHtml(error.message || "未知错误")}</p>`, "agent");
+      }
+    }
+
+    async function newSession() {
+      setSessionId(createSessionId());
+      closePreview();
+      renderInitialMessage("新会话已创建。请选择任务类型和地图区域，然后输入你的需求。");
+      updateMemoryStrip({status: "idle", session_id: sessionId, memory: {pending_slots: [], reports: []}});
+      await refreshSessions();
+      document.getElementById("prompt").focus();
     }
 
     function updateMapLabel() {
@@ -697,6 +1242,8 @@
             <span class="intent-pill">时间：${escapeHtml(payload.intent.time_range)}</span>
             <span class="intent-pill">意图来源：${escapeHtml(payload.intent.source)}</span>
             <span class="intent-pill">文案：${escapeHtml(report.llm_provider)}</span>
+            <span class="intent-pill">数据：${escapeHtml(analysis.data_source === "prototype" ? "流程验证" : analysis.data_source)}</span>
+            <span class="intent-pill">复用：${escapeHtml(report.reused ? "是" : "否")}</span>
           </div>
           <p>${escapeHtml(report.abstract)}</p>
           <div class="report-stats">${stats}</div>
@@ -704,17 +1251,141 @@
           <p>${escapeHtml(analysis.findings[0] || "")}</p>
           <p>${escapeHtml((analysis.narrative_blocks && analysis.narrative_blocks[0] && analysis.narrative_blocks[0].text) || "")}</p>
           <div class="report-links">
-            <a href="${escapeHtml(report.html_url)}" target="_blank" rel="noreferrer">打开完整 HTML 报告</a>
-            <a href="${escapeHtml(report.markdown_url)}" target="_blank" rel="noreferrer">查看 Markdown</a>
+            <a href="${escapeHtml(report.html_url)}" data-preview-url="${escapeHtml(report.html_url)}" data-preview-type="html" data-preview-title="${escapeHtml(report.title)}">打开完整 HTML 报告</a>
+            <a href="${escapeHtml(report.markdown_url)}" data-preview-url="${escapeHtml(report.markdown_url)}" data-preview-type="markdown" data-preview-title="${escapeHtml(report.title)}">查看 Markdown</a>
           </div>
         </div>
       `;
+    }
+
+    function inlineMarkdown(text) {
+      return escapeHtml(text)
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+
+    function renderMarkdown(text) {
+      const lines = text.replace(/\r\n/g, "\n").split("\n");
+      const htmlParts = [];
+      let listOpen = false;
+      let codeOpen = false;
+      let codeLines = [];
+
+      function closeList() {
+        if (listOpen) {
+          htmlParts.push("</ul>");
+          listOpen = false;
+        }
+      }
+
+      function closeCode() {
+        if (codeOpen) {
+          htmlParts.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+          codeLines = [];
+          codeOpen = false;
+        }
+      }
+
+      lines.forEach((line) => {
+        if (line.trim().startsWith("```")) {
+          if (codeOpen) {
+            closeCode();
+          } else {
+            closeList();
+            codeOpen = true;
+            codeLines = [];
+          }
+          return;
+        }
+        if (codeOpen) {
+          codeLines.push(line);
+          return;
+        }
+        if (!line.trim()) {
+          closeList();
+          return;
+        }
+        if (line.startsWith("# ")) {
+          closeList();
+          htmlParts.push(`<h1>${inlineMarkdown(line.slice(2).trim())}</h1>`);
+          return;
+        }
+        if (line.startsWith("## ")) {
+          closeList();
+          htmlParts.push(`<h2>${inlineMarkdown(line.slice(3).trim())}</h2>`);
+          return;
+        }
+        if (line.startsWith("### ")) {
+          closeList();
+          htmlParts.push(`<h3>${inlineMarkdown(line.slice(4).trim())}</h3>`);
+          return;
+        }
+        if (line.startsWith("- ")) {
+          if (!listOpen) {
+            htmlParts.push("<ul>");
+            listOpen = true;
+          }
+          htmlParts.push(`<li>${inlineMarkdown(line.slice(2).trim())}</li>`);
+          return;
+        }
+        closeList();
+        htmlParts.push(`<p>${inlineMarkdown(line.trim())}</p>`);
+      });
+      closeCode();
+      closeList();
+      return htmlParts.join("");
+    }
+
+    function showMarkdownPreview(rawMode) {
+      if (!currentMarkdownPreview) {
+        return;
+      }
+      currentMarkdownPreview.raw = rawMode;
+      previewMeta.textContent = rawMode ? "Markdown 原文" : "Markdown 预览";
+      toggleMarkdownRaw.textContent = rawMode ? "预览" : "原文";
+      if (rawMode) {
+        previewBody.innerHTML = `<pre class="markdown-preview raw">${escapeHtml(currentMarkdownPreview.text)}</pre>`;
+      } else {
+        previewBody.innerHTML = `<article class="markdown-preview">${renderMarkdown(currentMarkdownPreview.text)}</article>`;
+      }
+    }
+
+    async function openPreview(url, type, title) {
+      app.classList.add("preview-open");
+      previewTitle.textContent = title || "报告预览";
+      previewMeta.textContent = type === "markdown" ? "Markdown 预览" : "HTML";
+      previewOpenRaw.href = url;
+      previewBody.innerHTML = '<div class="preview-empty">正在加载报告内容。</div>';
+      currentMarkdownPreview = null;
+      toggleMarkdownRaw.style.display = type === "markdown" ? "inline-grid" : "none";
+      if (type === "markdown") {
+        try {
+          const response = await fetch(url);
+          const text = await response.text();
+          currentMarkdownPreview = {url, title, text, raw: false};
+          showMarkdownPreview(false);
+        } catch (error) {
+          previewBody.innerHTML = `<div class="preview-empty">Markdown 加载失败：${escapeHtml(error.message || "未知错误")}</div>`;
+        }
+        return;
+      }
+      previewBody.innerHTML = `<iframe class="preview-frame" src="${escapeHtml(url)}" title="${escapeHtml(title || "报告预览")}"></iframe>`;
+    }
+
+    function closePreview() {
+      app.classList.remove("preview-open");
+      previewBody.innerHTML = '<div class="preview-empty">点击报告链接后在这里查看内容。</div>';
+      previewOpenRaw.href = "#";
+      toggleMarkdownRaw.style.display = "none";
+      currentMarkdownPreview = null;
     }
 
     function updateMemoryStrip(payload) {
       const memory = payload.memory || {};
       const intent = payload.intent || memory.current_intent || {};
       const slots = memory.pending_slots || [];
+      const reports = memory.reports || [];
       document.getElementById("memoryStrip").innerHTML = `
         <span>会话：${escapeHtml((payload.session_id || sessionId).slice(0, 18))}</span>
         <span>状态：${escapeHtml(payload.status || memory.mode || "idle")}</span>
@@ -722,18 +1393,22 @@
         <span>地区：${escapeHtml(intent.region || currentRegion)}</span>
         <span>时间：${escapeHtml(intent.time_range || "待补充")}</span>
         <span>缺失：${escapeHtml(slots.length ? slots.join(", ") : "无")}</span>
+        <span>历史报告：${escapeHtml(String(reports.length || 0))}</span>
       `;
     }
 
     function renderClarification(payload) {
+      const isConfirmation = payload.status === "needs_confirmation";
       return `
         <div class="report-card">
           <p>${escapeHtml(payload.message || "请补充关键信息。")}</p>
           <div class="intent-row">
             <span class="intent-pill">任务：${escapeHtml(payload.intent?.task || currentTask)}</span>
             <span class="intent-pill">地区：${escapeHtml(payload.intent?.region || currentRegion)}</span>
+            <span class="intent-pill">时间：${escapeHtml(payload.intent?.time_range || "待补充")}</span>
             <span class="intent-pill">缺失：${escapeHtml((payload.intent?.missing_fields || []).join(", ") || "未知")}</span>
           </div>
+          ${isConfirmation ? '<div class="report-links"><button class="suggestion confirm-reuse" type="button">确认沿用</button></div>' : ''}
         </div>
       `;
     }
@@ -760,8 +1435,9 @@
         });
         const payload = await response.json();
         updateMemoryStrip(payload);
+        refreshSessions();
         if (!response.ok || payload.status !== "ok") {
-          if (payload.status === "needs_input") {
+          if (payload.status === "needs_input" || payload.status === "needs_confirmation") {
             messages.removeChild(messages.lastElementChild);
             addMessage(renderClarification(payload), "agent");
             return;
@@ -775,6 +1451,7 @@
         }
         messages.removeChild(messages.lastElementChild);
         addMessage(renderReportCard(payload), "agent");
+        refreshSessions();
       } catch (error) {
         messages.removeChild(messages.lastElementChild);
         addMessage(`
@@ -797,7 +1474,17 @@
       });
       messages.innerHTML = '<div class="msg agent">会话已清空。请选择任务类型和地图区域，然后继续输入需求。</div>';
       updateMemoryStrip({status: "idle", session_id: sessionId, memory: {pending_slots: []}});
+      closePreview();
+      refreshSessions();
     }
+
+    sessionList.addEventListener("click", (event) => {
+      const item = event.target.closest(".session-item");
+      if (!item) {
+        return;
+      }
+      loadSession(item.dataset.sessionId);
+    });
 
     document.querySelectorAll(".tag").forEach((tag) => {
       tag.addEventListener("click", () => {
@@ -838,6 +1525,29 @@
       });
     });
 
+    messages.addEventListener("click", (event) => {
+      const previewLink = event.target.closest("[data-preview-url]");
+      if (previewLink) {
+        event.preventDefault();
+        openPreview(previewLink.dataset.previewUrl, previewLink.dataset.previewType, previewLink.dataset.previewTitle);
+        return;
+      }
+      const button = event.target.closest(".confirm-reuse");
+      if (!button) {
+        return;
+      }
+      document.getElementById("prompt").value = "确认沿用";
+      sendMessage();
+    });
+
+    toggleMarkdownRaw.addEventListener("click", () => {
+      if (!currentMarkdownPreview) {
+        return;
+      }
+      showMarkdownPreview(!currentMarkdownPreview.raw);
+    });
+    document.getElementById("closePreview").addEventListener("click", closePreview);
+    document.getElementById("newSession").addEventListener("click", newSession);
     document.getElementById("resetSession").addEventListener("click", resetSession);
     document.getElementById("send").addEventListener("click", sendMessage);
     document.getElementById("prompt").addEventListener("keydown", (event) => {
@@ -848,6 +1558,7 @@
 
     updateMapLabel();
     updateMemoryStrip({status: "idle", session_id: sessionId, memory: {pending_slots: []}});
+    refreshSessions();
   </script>
 </body>
 </html>

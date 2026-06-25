@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from agent.schemas.report import AgentResponse, AgentRoute, AgentStatus, MessageType, ReportRequest, to_dict
+from agent.services.aef_analysis_service import AEFAnalysisService
 from agent.services.analysis_service import MockAnalysisService
 from agent.services.intent_service import IntentService
 from agent.services.llm_provider import DeepSeekProvider, LLMProvider
@@ -39,13 +40,13 @@ class ReportAgent:
         intent_service: IntentService | None = None,
         memory_service: MemoryService | None = None,
         chat_llm: LLMProvider | None = None,
-        analysis_service: MockAnalysisService | None = None,
+        analysis_service: AEFAnalysisService | MockAnalysisService | None = None,
         report_service: ReportService | None = None,
     ) -> None:
         self.intent_service = intent_service or IntentService()
         self.memory_service = memory_service or MemoryService()
         self.chat_llm = chat_llm or DeepSeekProvider()
-        self.analysis_service = analysis_service or MockAnalysisService()
+        self.analysis_service = analysis_service or AEFAnalysisService()
         self.report_service = report_service or ReportService()
         self.graph = self._build_graph() if StateGraph is not None else None
 
@@ -220,8 +221,22 @@ class ReportAgent:
         )
         text = self.chat_llm.complete(system_prompt, user_prompt)
         state["status"] = AgentStatus.CHAT
-        state["message"] = text.strip() if text else "我可以帮你生成遥感分析报告，也可以先帮你梳理任务、地区和月份。"
+        state["message"] = text.strip() if text else self._fallback_chat_response(request.prompt)
         return state
+
+    def _fallback_chat_response(self, prompt: str) -> str:
+        text = prompt.strip()
+        if any(key in text for key in ["你是谁", "你是什么", "你是什么助手", "你是干什么"]):
+            return (
+                "我是雅江遥感报告助手，主要帮你把自然语言需求整理成标准化遥感任务，"
+                "调用 AEF 模型完成地物分类、水体分类或高程地形分析，然后生成带图表的报告。"
+            )
+        if any(key in text for key in ["你能做什么", "你可以做什么", "你会做什么", "功能"]):
+            return (
+                "我可以帮你生成地物分类、水体分类和高程地形报告。你只要告诉我地区、任务和月份，"
+                "比如“给我一份去年九月份的水体分类报告”，我会自动补齐流程并生成报告。"
+            )
+        return "我在。你可以直接和我聊天，也可以让我生成地物分类、水体分类或高程地形分析报告。"
 
     def _run_analysis(self, state: ReportAgentState) -> ReportAgentState:
         intent = state["intent"]

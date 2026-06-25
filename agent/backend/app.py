@@ -257,14 +257,14 @@ WORKFLOW_HTML = """<!doctype html>
 <body>
   <main>
     <h1>遥感报告 Agent 节点编排</h1>
-    <p class="lead">当前流程支持多轮会话、SQLite 持久记忆、规则优先意图解析、LLM 兜底、报告复用与运行产物治理。时间月份仍是报告生成必填字段；若历史月份存在，Agent 会先请求用户确认，不会静默复用。</p>
+    <p class="lead">当前流程支持多轮会话、SQLite 持久记忆、规则优先意图解析、LLM 兜底、真实 AEF 推理服务调用、报告复用与运行产物治理。时间月份仍是报告生成必填字段；若历史月份存在，Agent 会先请求用户确认，不会静默复用。</p>
     <div class="flow">
       <article class="node"><span class="badge">Node 1</span><h2>load_memory</h2><p><strong>输入：</strong>session_id、用户消息、前端任务/地区标签。</p><p><strong>职责：</strong>读取 SQLite 会话状态，追加用户消息。</p></article>
       <article class="node"><span class="badge">Node 2</span><h2>parse_intent</h2><p><strong>服务：</strong>规则优先 + DeepSeek 兜底。</p><p><strong>分类：</strong>report_request / slot_fill / free_chat / change_context / confirmation。</p></article>
       <article class="node"><span class="badge">Node 3</span><h2>merge_memory</h2><p><strong>职责：</strong>合并新槽位和历史槽位。</p><p><strong>策略：</strong>历史月份存在但用户未指定时先确认。</p></article>
       <article class="node"><span class="badge">Node 4</span><h2>route</h2><p><strong>分支：</strong>ask_clarification / ask_confirmation / chat_response / run_analysis。</p><p><strong>规则：</strong>缺月份先追问，聊天不生成报告。</p></article>
       <article class="node"><span class="badge">Node 5</span><h2>ask/chat</h2><p><strong>追问：</strong>补月份或确认沿用历史月份。</p><p><strong>聊天：</strong>自然语言回答，不触发报告。</p></article>
-      <article class="node"><span class="badge">Node 6</span><h2>run_analysis</h2><p><strong>输入：</strong>标准化 AEF 调用字段。</p><p><strong>输出：</strong>指标卡、图表、风险、局限性和专题解读。</p></article>
+      <article class="node"><span class="badge">Node 6</span><h2>run_analysis</h2><p><strong>输入：</strong>标准化 AEF 调用字段。</p><p><strong>输出：</strong>真实 AEF 指标、图像产物、风险、局限性和专题解读。</p></article>
       <article class="node"><span class="badge">Node 7</span><h2>generate_report</h2><p><strong>服务：</strong>ReportService + DeepSeek。</p><p><strong>输出：</strong>HTML、Markdown、复用标记和报告记录。</p></article>
       <article class="node"><span class="badge">Node 8</span><h2>write_memory</h2><p><strong>职责：</strong>写回槽位、状态、摘要、消息和报告索引。</p><p><strong>输出：</strong>下一轮可继续补槽、改任务或聊天。</p></article>
     </div>
@@ -276,7 +276,9 @@ WORKFLOW_HTML = """<!doctype html>
   "region": "雅江区域",
   "time_range": "2025-10",
   "aoi": {"name": "雅江区域"},
-  "outputs": ["embedding_map", "landcover_distribution", "confidence_summary"]
+  "sample_indices": [300],
+  "selector": "temporary_deterministic_patch_selector",
+  "outputs": ["metrics", "artifacts", "report_assets"]
 }</pre>
       </section>
       <section>
@@ -284,7 +286,7 @@ WORKFLOW_HTML = """<!doctype html>
         <ul>
           <li>报告生成前必须补齐或确认关键字段。</li>
           <li>LLM 负责理解和表达，结构化指标由分析服务提供。</li>
-          <li>当前流程验证数据与正式模型结果在结构上保持可替换。</li>
+          <li>当前已调用真实 AEF 推理服务，区域到 patch 的映射后续替换为正式 AOI 检索。</li>
           <li>运行产物进入 agent/reports 和 agent/runtime，不进入 git。</li>
         </ul>
       </section>

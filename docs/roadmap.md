@@ -7,7 +7,7 @@
 当前主线：
 
 ```text
-v1.2 A800/CUDA 8-card DDP
+v1.2 / v1.3 A800/CUDA 8-card DDP
 S2 + S1 + Landsat -> DEM + WorldCover + JRC Water
 目标：雅江地区通用多模态 embedding
 ```
@@ -102,11 +102,21 @@ docs/experiments/v0.3c.md
 
 因此，如果目标是通用 embedding，下一阶段的核心不是继续单纯拉长 epoch，而是让训练目标更直接服务于 embedding。
 
-## 下一阶段：v1.3 embedding-first 优化
+## 当前优化：v1.3 embedding-first
 
 ### 目标
 
 训练一个更适合冻结后接简单任务头的雅江多模态 embedding。
+
+状态：代码已实现，待正式 8 卡训练和评测。
+
+v1.3 新增内容：
+
+- teacher-student consistency；
+- student 输入随机缺源、缺时间帧、缺前半段或后半段时序；
+- AlphaEarth-style batch orthogonal uniformity；
+- 每 10 epoch 保存中间 checkpoint，方便按 downstream probe 选模型；
+- checkpoint 到 deploy 格式的导出工具。
 
 ### 完成标准
 
@@ -145,10 +155,17 @@ cross-shot stability
 
 #### 3. 调整训练目标
 
-候选方向：
+已实现第一版：
+
+```text
+teacher 完整输入
+student 扰动输入
+loss = reconstruction + consistency + batch_uniformity + existing regularizers
+```
+
+后续候选方向：
 
 - 降低 decoder 重建 loss 权重；
-- 增加 embedding 对比学习或跨模态 alignment；
 - 加入 masked source reconstruction；
 - 使用 projection head，把 decoder-specific 信息和 embedding 表征解耦；
 - 阶段性冻结 decoder 或 encoder，观察 downstream probe 变化。
@@ -199,6 +216,7 @@ conda activate hyh-dl
 bash scripts/run_v1_2.sh
 bash scripts/run_v1_2_continue_100.sh
 bash scripts/run_v1_2_continue_200.sh
+bash scripts/run_v1_3.sh
 ```
 
 评测：
@@ -207,6 +225,16 @@ bash scripts/run_v1_2_continue_200.sh
 bash scripts/run_eval_suite_v1_2.sh
 bash scripts/run_eval_suite_v1_2_continue_100.sh
 bash scripts/run_eval_suite_v1_2_continue_200.sh
+bash scripts/run_eval_suite_v1_3.sh
+```
+
+导出中间 checkpoint：
+
+```bash
+python scripts/export_checkpoint_to_deploy.py \
+  --config configs/yajiang_v1_3.yaml \
+  --checkpoint outputs/aef_hyh_yajiang_v1_3/checkpoints/epoch_010.pt \
+  --output outputs/aef_hyh_yajiang_v1_3/exports/aef_hyh_yajiang_v1_3_epoch_010_deploy.pt
 ```
 
 ## 备注

@@ -42,10 +42,13 @@ reference/
 .ipynb_checkpoints/
 
 # Secrets
-agent/services/llm_provider.py
+.env
+.env.*
+*.local
 
 # Agent runtime outputs (generated reports and assets)
 agent/reports/
+agent/runtime/
 
 # Build
 build/

@@ -12,7 +12,7 @@
 | --- | --- |
 | 环境 | `conda activate hyh-dl` |
 | 硬件 | NVIDIA A800，默认 8 卡 |
-| 主配置 | `configs/yajiang_v1_2.yaml` |
+| 主配置 | `configs/yajiang_v1_2.yaml` / `configs/yajiang_v1_3.yaml` |
 | 输入 | S2 (6ch) / S1 (2ch) / Landsat (6ch) |
 | 目标 | DEM / WorldCover / JRC Water |
 | 训练样本 | `data/full_npy/train.jsonl` |
@@ -44,6 +44,12 @@ bash scripts/run_v1_2_continue_100.sh
 bash scripts/run_v1_2_continue_200.sh
 ```
 
+训练 v1.3 embedding-first 版本：
+
+```bash
+bash scripts/run_v1_3.sh
+```
+
 默认使用 8 张卡：
 
 ```bash
@@ -65,6 +71,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 bash scripts/run_v1_2.sh
 bash scripts/run_eval_suite_v1_2.sh
 bash scripts/run_eval_suite_v1_2_continue_100.sh
 bash scripts/run_eval_suite_v1_2_continue_200.sh
+bash scripts/run_eval_suite_v1_3.sh
 ```
 
 可调参数：
@@ -117,6 +124,41 @@ outputs/model_eval/<version>/
 | v1.2_continue_200 | 200 epoch | DEM R2 0.9889 / WorldCover F1 0.7837 | 继续下降 | 更适合重建/解码任务 |
 
 详细记录见 `docs/experiments/v1.2_a800.md`。
+
+## v1.3 embedding-first 优化
+
+v1.3 在 v1.2 基础上不大改主干，而是把论文中更直接服务 embedding 的训练目标加入训练闭环：
+
+```text
+teacher-student consistency
+batch orthogonal uniformity
+每 10 epoch 保存中间 checkpoint
+```
+
+teacher 使用完整输入，student 使用扰动输入：
+
+```text
+随机 drop S1 / Landsat
+随机 drop 时间帧
+随机 drop 前半段或后半段时间序列
+```
+
+训练目标是让同一地点、同一 valid period 的 teacher/student embedding 接近，从而让 embedding 更关注地表状态而不是某个传感器或某次观测。
+
+v1.3 训练输出：
+
+```text
+outputs/aef_hyh_yajiang_v1_3/
+```
+
+中间 checkpoint 可导出为 deploy 格式后单独评测：
+
+```bash
+python scripts/export_checkpoint_to_deploy.py \
+  --config configs/yajiang_v1_3.yaml \
+  --checkpoint outputs/aef_hyh_yajiang_v1_3/checkpoints/epoch_010.pt \
+  --output outputs/aef_hyh_yajiang_v1_3/exports/aef_hyh_yajiang_v1_3_epoch_010_deploy.pt
+```
 
 ## 数据准备
 

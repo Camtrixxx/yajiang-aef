@@ -64,6 +64,16 @@ class MemoryConfig:
 
 
 @dataclass(slots=True)
+class AEFConfig:
+    """External AEF inference service used by the report agent."""
+
+    base_url: str = field(default_factory=lambda: os.getenv("AGENT_AEF_BASE_URL", "http://127.0.0.1:7862"))
+    timeout: int = field(default_factory=lambda: _get_int("AGENT_AEF_TIMEOUT", 120))
+    sample_count: int = field(default_factory=lambda: _get_int("AGENT_AEF_SAMPLE_COUNT", 1))
+    rgb_source: str = field(default_factory=lambda: os.getenv("AGENT_AEF_RGB_SOURCE", "s2"))
+
+
+@dataclass(slots=True)
 class ServerConfig:
     host: str = field(default_factory=lambda: os.getenv("AGENT_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: _get_int("AGENT_PORT", 7870))
@@ -75,6 +85,7 @@ class AgentConfig:
     intent: IntentConfig = field(default_factory=IntentConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    aef: AEFConfig = field(default_factory=AEFConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
 
 

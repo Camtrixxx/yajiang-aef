@@ -109,7 +109,50 @@ class IntentService:
         prompt = request.prompt.strip()
         confirmation_words = ["确认", "沿用", "可以", "好的", "没问题", "继续", "用上次"]
         negative_words = ["不要", "不是", "重新", "换一个", "不沿用"]
-        if any(key in prompt for key in ["你是谁", "你能做什么", "你好", "介绍一下", "闲聊", "帮助"]):
+        capability_questions = [
+            "你是谁",
+            "你是什么",
+            "你是什么助手",
+            "你能做什么",
+            "你可以做什么",
+            "你会做什么",
+            "你会干什么",
+            "你是干什么",
+            "你有什么功能",
+            "介绍一下你",
+            "介绍你自己",
+        ]
+        greeting_or_chat = ["你好", "您好", "闲聊", "聊聊天"]
+        report_signals = [
+            "报告",
+            "分析",
+            "生成",
+            "出一份",
+            "看一下",
+            "看看",
+            "地物",
+            "水体",
+            "高程",
+            "地形",
+            "遥感",
+            "分类",
+            "分布",
+            "重建",
+            "去年",
+            "今年",
+            "明年",
+            "上月",
+            "本月",
+            "月份",
+            "月",
+        ]
+        has_report_signal = any(key in prompt for key in report_signals)
+        is_short_user_question = "你" in prompt and len(prompt) <= 16 and not has_report_signal
+        if (
+            any(key in prompt for key in capability_questions)
+            or any(key in prompt for key in greeting_or_chat)
+            or is_short_user_question
+        ):
             message_type = MessageType.FREE_CHAT
         if any(key in prompt for key in ["改成", "换成", "切换到", "地区改", "任务改"]):
             message_type = MessageType.CHANGE_CONTEXT

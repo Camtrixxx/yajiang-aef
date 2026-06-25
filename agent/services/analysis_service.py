@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib
@@ -103,6 +104,31 @@ class MockAnalysisService:
             "正式报告应增加 AOI 边界、时间窗口、数据源清单和模型版本说明。",
             "若用于业务交付，建议输出 HTML 与 PDF 两种格式，并保存结构化 JSON 便于复核。",
             "若面向业务决策，建议在结论页后追加一页“行动建议”，把发现转成具体处置项。",
+            "建议对高关注类型增加人工抽样复核，形成可追溯的质量评估记录。",
+        ]
+
+        risks = [
+            f"{profile['main']}作为主导类型时，边界区域容易受阴影、坡度和混合像元影响，需要关注类型交界带。",
+            "单月时相可能受云雾、季节性植被状态和影像覆盖质量影响，建议与相邻月份做一致性对比。",
+            "若用于正式业务判断，应结合外业样点、历史变化序列和更高分辨率影像进行复核。",
+        ]
+
+        method_notes = [
+            "输入侧由任务标签、区域标签和自然语言月份共同约束，形成标准化 AEF 调用字段。",
+            "指标侧围绕地表类型构成、有效像元、平均置信度、时相覆盖和结果稳定性进行组织。",
+            "图表侧优先展示可解释的专题构成，并在附录保留后续模型调用所需的结构化参数。",
+        ]
+
+        confidence_notes = [
+            f"平均置信度为 {confidence:.2f}，用于描述当前专题结果的整体可解释程度。",
+            f"有效像元比例为 {valid_pixels:.1f}%，说明当前区域大部分像元可以参与统计。",
+            f"时相覆盖为 {coverage:.2f}，结果稳定性为 {stability:.2f}，适合开展初步专题研判。",
+        ]
+
+        limitations = [
+            "当前分析服务用于验证 Agent 流程和报告结构，后续接入真实 AEF 后替换指标来源。",
+            "当前未引入真实 AOI 几何边界、影像云量筛选和模型版本号，因此不建议作为正式业务结论直接交付。",
+            "当前图表主要表达专题构成，尚未包含空间栅格图、变化检测图和样本复核图层。",
         ]
 
         narrative_blocks = [
@@ -117,9 +143,13 @@ class MockAnalysisService:
                 "植被覆盖层次和建设用地外扩边界的变化。",
             },
             {
+                "title": "关注重点",
+                "text": f"建议重点关注{profile['main']}与其他类型的交界区域，结合有效像元、稳定性和时相覆盖判断结果可用性。",
+            },
+            {
                 "title": "交付建议",
-                "text": "正式报告建议使用统一版式：标题页、执行摘要、关键指标、图表页、专题发现、方法说明和附录，"
-                "这样更适合交付和复核。",
+                "text": "正式报告建议使用统一版式：标题页、执行摘要、关键指标、图表页、专题发现、风险提示、方法说明和附录，"
+                "这样更适合交付、复核和后续接入真实模型结果。",
             },
         ]
 
@@ -133,6 +163,12 @@ class MockAnalysisService:
             findings=findings,
             recommendations=recommendations,
             narrative_blocks=narrative_blocks,
+            risks=risks,
+            method_notes=method_notes,
+            limitations=limitations,
+            confidence_notes=confidence_notes,
+            data_source="prototype",
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             aef_payload=aef_payload,
             charts=[chart],
         )

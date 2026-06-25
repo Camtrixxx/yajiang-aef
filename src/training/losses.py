@@ -141,6 +141,36 @@ def embedding_uniformity_loss(emb: torch.Tensor, t: float = 2.0) -> torch.Tensor
     return torch.log(torch.exp(-t * dist).mean() + 1e-8)
 
 
+def batch_orthogonal_uniformity_loss(emb: torch.Tensor) -> torch.Tensor:
+    """
+    AlphaEarth-style batch uniformity proxy.
+
+    Random pairs from a well-spread unit-sphere embedding space should be close
+    to orthogonal, so we minimize the absolute dot product after a deterministic
+    batch rotation. This is cheap, stable for DDP-local batches, and complements
+    the Wang & Isola uniformity term above.
+    """
+    if emb.shape[0] <= 1:
+        return emb.sum() * 0.0
+
+    emb = F.normalize(emb, dim=-1)
+    paired = torch.roll(emb, shifts=1, dims=0)
+    return (emb * paired).sum(dim=-1).abs().mean()
+
+
+def embedding_consistency_loss(
+    teacher_emb: torch.Tensor,
+    student_emb: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Encourage two views of the same sample/time window to produce the same
+    embedding. The caller decides whether the teacher side is detached.
+    """
+    teacher_emb = F.normalize(teacher_emb, dim=-1)
+    student_emb = F.normalize(student_emb, dim=-1)
+    return ((1.0 - (teacher_emb * student_emb).sum(dim=-1)) * 0.5).mean()
+
+
 def batch_variance_loss(
     emb: torch.Tensor,
     target_std: float = 1.0,
@@ -181,16 +211,24 @@ def orthogonality_loss(feature_map: torch.Tensor) -> torch.Tensor:
     return (gram - eye).pow(2).mean()
 
 
-def compute_total_loss(model_output, batch: dict, cfg) -> LossOutput:
+def compute_total_loss(
+    model_output,
+    batch: dict,
+    cfg,
+    student_output=None,
+    teacher_consistency_output=None,
+) -> LossOutput:
     losses: dict[str, torch.Tensor] = {}
     training_cfg = cfg.training
 
     recon_weight = getattr(training_cfg, "reconstruction_weight", 1.0)
     target_loss_weights = getattr(training_cfg, "target_loss_weights", {})
     uniformity_weight = getattr(training_cfg, "uniformity_weight", 0.0)
+    batch_uniformity_weight = getattr(training_cfg, "batch_uniformity_weight", 0.0)
     variance_weight = getattr(training_cfg, "variance_weight", 0.0)
     decorrelation_weight = getattr(training_cfg, "decorrelation_weight", 0.0)
     orthogonality_weight = getattr(training_cfg, "orthogonality_weight", 0.0)
+    consistency_weight = getattr(training_cfg, "consistency_weight", 0.0)
 
     target_tensors = batch.get("targets", {})
     target_masks = batch.get("target_masks", {})
@@ -225,15 +263,28 @@ def compute_total_loss(model_output, batch: dict, cfg) -> LossOutput:
 
     emb = model_output.embedding
     losses["reg/uniformity"] = embedding_uniformity_loss(emb)
+    losses["reg/batch_uniformity"] = batch_orthogonal_uniformity_loss(emb)
     losses["reg/variance"] = batch_variance_loss(emb)
     losses["reg/decorrelation"] = decorrelation_loss(emb)
     losses["reg/orthogonality"] = orthogonality_loss(model_output.embedding_map)
 
     total = recon_weight * losses["recon/total"]
     total = total + uniformity_weight * losses["reg/uniformity"]
+    total = total + batch_uniformity_weight * losses["reg/batch_uniformity"]
     total = total + variance_weight * losses["reg/variance"]
     total = total + decorrelation_weight * losses["reg/decorrelation"]
     total = total + orthogonality_weight * losses["reg/orthogonality"]
+
+    if student_output is not None and consistency_weight > 0:
+        teacher_ref = teacher_consistency_output if teacher_consistency_output is not None else model_output
+        teacher_emb = teacher_ref.embedding.detach()
+        losses["consistency/embedding"] = embedding_consistency_loss(
+            teacher_emb,
+            student_output.embedding,
+        )
+        total = total + consistency_weight * losses["consistency/embedding"]
+    else:
+        losses["consistency/embedding"] = emb.sum() * 0.0
 
     losses["loss"] = total
     return LossOutput(total=total, components=losses)

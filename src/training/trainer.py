@@ -84,6 +84,13 @@ class Trainer:
             return str(obj)
         return obj
 
+    def _namespace_to_dict(self, obj):
+        if isinstance(obj, SimpleNamespace):
+            return {k: self._namespace_to_dict(v) for k, v in vars(obj).items()}
+        if isinstance(obj, dict):
+            return {k: self._namespace_to_dict(v) for k, v in obj.items()}
+        return obj
+
     def _move_to_device(self, obj):
         if torch.is_tensor(obj):
             return obj.to(self.device, non_blocking=True)
@@ -92,6 +99,157 @@ class Trainer:
         if isinstance(obj, list):
             return [self._move_to_device(v) for v in obj]
         return obj
+
+    def _forward_model(self, batch):
+        return self.model(
+            source_frames=batch["source_frames"],
+            source_timestamps_ms=batch["source_timestamps_ms"],
+            source_frame_mask=batch["source_frame_mask"],
+            source_input_mask=batch["source_input_mask"],
+            source_type_ids=batch["source_type_ids"],
+            valid_start_ms=batch["valid_start_ms"],
+            valid_end_ms=batch["valid_end_ms"],
+            target_relative_time=batch["target_relative_time"],
+            target_metadata=batch["target_metadata"],
+        )
+
+    def _clone_batch_for_student(self, batch: dict) -> dict:
+        cloned = {}
+        for key, value in batch.items():
+            if torch.is_tensor(value):
+                cloned[key] = value.clone()
+            elif isinstance(value, dict):
+                cloned[key] = {
+                    sub_key: sub_value.clone() if torch.is_tensor(sub_value) else sub_value
+                    for sub_key, sub_value in value.items()
+                }
+            else:
+                cloned[key] = value
+        return cloned
+
+    def _concat_view_batches(self, teacher_batch: dict, student_batch: dict) -> dict:
+        merged = {}
+        for key, value in teacher_batch.items():
+            other = student_batch[key]
+            if torch.is_tensor(value):
+                merged[key] = torch.cat([value, other], dim=0)
+            elif isinstance(value, dict):
+                merged[key] = {
+                    sub_key: torch.cat([sub_value, other[sub_key]], dim=0)
+                    if torch.is_tensor(sub_value)
+                    else sub_value
+                    for sub_key, sub_value in value.items()
+                }
+            else:
+                merged[key] = value
+        return merged
+
+    def _split_model_output(self, output, batch_size: int):
+        reconstructions = {
+            key: value[:batch_size]
+            for key, value in output.reconstructions.items()
+        }
+        student_reconstructions = {
+            key: value[batch_size:]
+            for key, value in output.reconstructions.items()
+        }
+        output_cls = type(output)
+        teacher_output = output_cls(
+            embedding_map=output.embedding_map[:batch_size],
+            embedding=output.embedding[:batch_size],
+            pre_norm_embedding=output.pre_norm_embedding[:batch_size],
+            pre_norm_map=output.pre_norm_map[:batch_size] if output.pre_norm_map is not None else None,
+            reconstructions=reconstructions,
+        )
+        student_output = output_cls(
+            embedding_map=output.embedding_map[batch_size:],
+            embedding=output.embedding[batch_size:],
+            pre_norm_embedding=output.pre_norm_embedding[batch_size:],
+            pre_norm_map=output.pre_norm_map[batch_size:] if output.pre_norm_map is not None else None,
+            reconstructions=student_reconstructions,
+        )
+        return teacher_output, student_output
+
+    def _drop_frames_for_source(
+        self,
+        frame_mask: torch.Tensor,
+        batch_idx: int,
+        source_idx: int,
+        drop_prob: float,
+    ) -> None:
+        valid = frame_mask[batch_idx, source_idx]
+        if not valid.any() or drop_prob <= 0:
+            return
+        keep = torch.rand(valid.shape, device=valid.device) >= drop_prob
+        updated = valid & keep
+        if updated.any():
+            frame_mask[batch_idx, source_idx] = updated
+
+    def _drop_temporal_half(
+        self,
+        frame_mask: torch.Tensor,
+        batch_idx: int,
+        drop_latter_half: bool,
+    ) -> None:
+        for source_idx in range(frame_mask.shape[1]):
+            valid_indices = torch.nonzero(frame_mask[batch_idx, source_idx], as_tuple=False).flatten()
+            if valid_indices.numel() <= 1:
+                continue
+            midpoint = max(1, valid_indices.numel() // 2)
+            drop_indices = valid_indices[midpoint:] if drop_latter_half else valid_indices[:midpoint]
+            candidate = frame_mask[batch_idx, source_idx].clone()
+            candidate[drop_indices] = False
+            if candidate.any():
+                frame_mask[batch_idx, source_idx] = candidate
+
+    def make_student_batch(self, batch: dict) -> dict | None:
+        training_cfg = self.cfg.training
+        consistency_weight = float(getattr(training_cfg, "consistency_weight", 0.0))
+        if consistency_weight <= 0:
+            return None
+
+        cfg = self._namespace_to_dict(getattr(training_cfg, "student_perturbation", {}))
+        if not isinstance(cfg, dict) or not cfg.get("enabled", True):
+            return None
+
+        student = self._clone_batch_for_student(batch)
+        frame_mask = student["source_frame_mask"]
+        input_mask = student["source_input_mask"]
+        source_frames = student["source_frames"]
+
+        source_names = list(getattr(self.cfg.data, "input_sources", []))
+        source_drop_probs = cfg.get("source_drop_probs", {})
+        frame_drop_probs = cfg.get("frame_drop_probs", {})
+        default_frame_drop_prob = float(cfg.get("frame_drop_prob", 0.0))
+        half_sequence_drop_prob = float(cfg.get("half_sequence_drop_prob", 0.0))
+
+        batch_size, num_sources, _ = frame_mask.shape
+        original_effective = frame_mask & input_mask[:, :, None]
+
+        for batch_idx in range(batch_size):
+            for source_idx, source_name in enumerate(source_names):
+                source_drop_prob = float(source_drop_probs.get(source_name, 0.0))
+                if input_mask[batch_idx, source_idx] and source_drop_prob > 0:
+                    if torch.rand((), device=frame_mask.device) < source_drop_prob:
+                        input_mask[batch_idx, source_idx] = False
+                        frame_mask[batch_idx, source_idx] = False
+                        source_frames[batch_idx, source_idx] = 0
+                        continue
+
+                frame_drop_prob = float(frame_drop_probs.get(source_name, default_frame_drop_prob))
+                self._drop_frames_for_source(frame_mask, batch_idx, source_idx, frame_drop_prob)
+
+            if half_sequence_drop_prob > 0:
+                if torch.rand((), device=frame_mask.device) < half_sequence_drop_prob:
+                    drop_latter_half = bool(torch.rand((), device=frame_mask.device) < 0.5)
+                    self._drop_temporal_half(frame_mask, batch_idx, drop_latter_half)
+
+            effective = frame_mask[batch_idx] & input_mask[batch_idx, :, None]
+            if not effective.any():
+                frame_mask[batch_idx] = original_effective[batch_idx]
+                input_mask[batch_idx] = original_effective[batch_idx].any(dim=1)
+
+        return student
 
     def save_checkpoint(self, name: str):
         if not self.distributed.is_main_process:
@@ -175,18 +333,23 @@ class Trainer:
                 dtype=self.amp_dtype,
                 enabled=self.use_amp,
             ):
-                output = self.model(
-                    source_frames=batch["source_frames"],
-                    source_timestamps_ms=batch["source_timestamps_ms"],
-                    source_frame_mask=batch["source_frame_mask"],
-                    source_input_mask=batch["source_input_mask"],
-                    source_type_ids=batch["source_type_ids"],
-                    valid_start_ms=batch["valid_start_ms"],
-                    valid_end_ms=batch["valid_end_ms"],
-                    target_relative_time=batch["target_relative_time"],
-                    target_metadata=batch["target_metadata"],
+                student_batch = self.make_student_batch(batch)
+                if student_batch is not None:
+                    merged_batch = self._concat_view_batches(batch, student_batch)
+                    merged_output = self._forward_model(merged_batch)
+                    output, student_output = self._split_model_output(
+                        merged_output,
+                        batch["source_frames"].shape[0],
+                    )
+                else:
+                    output = self._forward_model(batch)
+                    student_output = None
+                loss_out = compute_total_loss(
+                    output,
+                    batch,
+                    self.cfg,
+                    student_output=student_output,
                 )
-                loss_out = compute_total_loss(output, batch, self.cfg)
                 loss = loss_out.total
 
             if self.scaler is not None and self.use_amp and self.amp_dtype == torch.float16:

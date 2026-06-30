@@ -19,6 +19,14 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _get_list(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    return values or default
+
+
 @dataclass(slots=True)
 class LLMConfig:
     """DeepSeek / LLM provider configuration (env-driven, no hardcoded key)."""
@@ -77,6 +85,7 @@ class AEFConfig:
 class ServerConfig:
     host: str = field(default_factory=lambda: os.getenv("AGENT_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: _get_int("AGENT_PORT", 7870))
+    cors_origins: list[str] = field(default_factory=lambda: _get_list("AGENT_CORS_ORIGINS", ["*"]))
 
 
 @dataclass(slots=True)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -13,15 +15,18 @@ from agent.schemas.report import ReportRequest, to_dict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 UI_PATH = PROJECT_ROOT / "agent" / "ui" / "agent_dashboard_mock.html"
+API_DOC_PATH = PROJECT_ROOT / "agent" / "API.md"
 REPORT_DIR = PROJECT_ROOT / "agent" / "reports"
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
     from fastapi.staticfiles import StaticFiles
 except ImportError:
     FastAPI = None
     HTTPException = None
+    CORSMiddleware = None
     FileResponse = None
     HTMLResponse = None
     JSONResponse = None
@@ -79,12 +84,162 @@ def _report_content_type(path: Path) -> str:
     return "text/html; charset=utf-8"
 
 
+def _inline_markdown(text: str) -> str:
+    escaped = html.escape(text)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+    return escaped
+
+
+def _render_markdown_html(markdown_text: str) -> str:
+    lines = markdown_text.splitlines()
+    chunks: list[str] = []
+    paragraph: list[str] = []
+    bullets: list[str] = []
+    in_code = False
+    code_lines: list[str] = []
+    table_lines: list[str] = []
+
+    def flush_paragraph() -> None:
+        nonlocal paragraph
+        if paragraph:
+            chunks.append(f"<p>{_inline_markdown(' '.join(paragraph))}</p>")
+            paragraph = []
+
+    def flush_bullets() -> None:
+        nonlocal bullets
+        if bullets:
+            items = "".join(f"<li>{_inline_markdown(item)}</li>" for item in bullets)
+            chunks.append(f"<ul>{items}</ul>")
+            bullets = []
+
+    def flush_table() -> None:
+        nonlocal table_lines
+        if not table_lines:
+            return
+        rows = [
+            [cell.strip() for cell in line.strip().strip("|").split("|")]
+            for line in table_lines
+            if line.strip().startswith("|")
+        ]
+        table_lines = []
+        if len(rows) < 2:
+            return
+        header = rows[0]
+        body = rows[2:] if all(set(cell) <= {"-", ":", " "} for cell in rows[1]) else rows[1:]
+        head_html = "".join(f"<th>{_inline_markdown(cell)}</th>" for cell in header)
+        body_html = "".join(
+            "<tr>" + "".join(f"<td>{_inline_markdown(cell)}</td>" for cell in row) + "</tr>"
+            for row in body
+        )
+        chunks.append(f"<table><thead><tr>{head_html}</tr></thead><tbody>{body_html}</tbody></table>")
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        if line.startswith("```"):
+            flush_paragraph()
+            flush_bullets()
+            flush_table()
+            if in_code:
+                chunks.append(f"<pre><code>{html.escape(chr(10).join(code_lines))}</code></pre>")
+                code_lines = []
+                in_code = False
+            else:
+                in_code = True
+            continue
+        if in_code:
+            code_lines.append(line)
+            continue
+        if line.strip().startswith("|"):
+            flush_paragraph()
+            flush_bullets()
+            table_lines.append(line)
+            continue
+        flush_table()
+        if not line.strip():
+            flush_paragraph()
+            flush_bullets()
+            continue
+        if line.startswith("#"):
+            flush_paragraph()
+            flush_bullets()
+            level = min(len(line) - len(line.lstrip("#")), 3)
+            title = line[level:].strip()
+            anchor = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff_-]+", "-", title).strip("-").lower()
+            chunks.append(f'<h{level} id="{html.escape(anchor)}">{_inline_markdown(title)}</h{level}>')
+            continue
+        if line.startswith("- "):
+            flush_paragraph()
+            bullets.append(line[2:].strip())
+            continue
+        paragraph.append(line.strip())
+
+    flush_paragraph()
+    flush_bullets()
+    flush_table()
+    if in_code:
+        chunks.append(f"<pre><code>{html.escape(chr(10).join(code_lines))}</code></pre>")
+
+    return "\n".join(chunks)
+
+
+def _api_docs_page() -> str:
+    markdown_text = API_DOC_PATH.read_text(encoding="utf-8")
+    body = _render_markdown_html(markdown_text)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yajiang Report Agent API</title>
+  <style>
+    body {{ margin: 0; background: #f6f7f9; color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }}
+    main {{ max-width: 1040px; margin: 0 auto; padding: 34px 20px 64px; }}
+    .top {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }}
+    .top a {{ color: #2563eb; text-decoration: none; font-weight: 700; }}
+    article {{ background: #fff; border: 1px solid #dbe3ea; border-radius: 10px; padding: 28px; box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07); }}
+    h1 {{ margin-top: 0; font-size: 34px; }}
+    h2 {{ margin-top: 34px; padding-top: 10px; border-top: 1px solid #e5e7eb; }}
+    h3 {{ margin-top: 28px; }}
+    p, li {{ line-height: 1.78; }}
+    code {{ background: #eef2ff; color: #1d4ed8; border-radius: 5px; padding: 2px 5px; font-size: 0.92em; }}
+    pre {{ background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 16px; overflow: auto; line-height: 1.55; }}
+    pre code {{ background: transparent; color: inherit; padding: 0; }}
+    table {{ width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; }}
+    th, td {{ border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }}
+    th {{ background: #f8fafc; }}
+    ul {{ padding-left: 22px; }}
+    @media (max-width: 760px) {{ article {{ padding: 18px; }} h1 {{ font-size: 28px; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top">
+      <strong>Yajiang Report Agent</strong>
+      <nav><a href="/docs">Swagger</a> · <a href="/api-docs.md">Markdown</a> · <a href="/api/health">Health</a></nav>
+    </div>
+    <article>{body}</article>
+  </main>
+</body>
+</html>
+"""
+
+
 def create_app(agent: ReportAgent | None = None):
     if FastAPI is None:
         raise RuntimeError("FastAPI is not installed. Use --legacy-http or install fastapi uvicorn.")
 
     report_agent = agent or ReportAgent()
     app = FastAPI(title="Yajiang Report Agent", version="0.2.0")
+    config = load_config()
+    if CORSMiddleware is not None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config.server.cors_origins,
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     if StaticFiles is not None:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)
         app.mount("/reports", StaticFiles(directory=str(REPORT_DIR)), name="reports")
@@ -100,6 +255,14 @@ def create_app(agent: ReportAgent | None = None):
     @app.get("/workflow", response_class=HTMLResponse)
     def workflow() -> HTMLResponse:
         return HTMLResponse(WORKFLOW_HTML)
+
+    @app.get("/api-docs", response_class=HTMLResponse)
+    def api_docs() -> HTMLResponse:
+        return HTMLResponse(_api_docs_page())
+
+    @app.get("/api-docs.md")
+    def api_docs_markdown() -> FileResponse:
+        return FileResponse(API_DOC_PATH, media_type="text/markdown; charset=utf-8")
 
     @app.get("/api/health")
     def health() -> dict:

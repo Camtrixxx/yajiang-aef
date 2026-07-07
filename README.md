@@ -4,6 +4,8 @@
 
 模型输入 Sentinel-2 / Sentinel-1 / Landsat 多时相遥感影像，训练一个雅江地区通用多模态 embedding。预训练阶段用 DEM、WorldCover、JRC Water 三个目标做重建约束；评测阶段重点看冻结 embedding 后接简单任务头的 few-shot / linear probe 表现。
 
+仓库范围保持在模型训练、数据准备、离线评测和实验记录；不包含面向业务对话、HTTP API 或在线推理服务的 agent/backend 代码。
+
 当前主线已从华为 Ascend/NPU 训练迁移到 NVIDIA A800 CUDA 环境，默认使用 8 卡 DDP。
 
 ## 当前主线

@@ -27,6 +27,7 @@ outputs/
 checkpoints/
 cache/
 tmp/
+external/
 kernel_meta/
 fusion_result.json
 docs/ui/
@@ -45,10 +46,6 @@ reference/
 .env
 .env.*
 *.local
-
-# Agent runtime outputs (generated reports and assets)
-agent/reports/
-agent/runtime/
 
 # Build
 build/

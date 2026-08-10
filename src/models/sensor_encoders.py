@@ -4,6 +4,32 @@ import torch
 from torch import nn
 
 
+def _norm(channels: int, kind: str, groups: int = 8) -> nn.Module:
+    """Normalization for the sensor stem.
+
+    `batch` (nn.BatchNorm2d) is the historical choice but is unsound here:
+    SensorEncoderBank.forward folds all T frame slots into the batch dim,
+    including all-zero padding slots, so the batch statistics are computed over
+    a mix of real and padded frames. Measured on v1.2 (9 of 48 slots padded,
+    19%): changing max_frames 16->13 moved the loss by |dloss|=1.6e-1, which
+    dropped to 6.7e-6 once BN was frozen -- a 23000x reduction isolating BN as
+    the cause. At national scale the padded fraction varies by region (cloud
+    cover, revisit, sensor availability), which turns this into a geographically
+    correlated bias in the normalization statistics.
+
+    `group` (nn.GroupNorm) normalizes per sample over channel groups, so padded
+    slots cannot leak into a real frame's statistics.
+    """
+    if kind == "batch":
+        return nn.BatchNorm2d(channels)
+    if kind == "group":
+        g = min(groups, channels)
+        while g > 1 and channels % g != 0:
+            g -= 1
+        return nn.GroupNorm(g, channels)
+    raise ValueError(f"Unknown stem_norm: {kind!r} (expected 'batch' or 'group')")
+
+
 class SensorEncoder(nn.Module):
     """
     单个传感器编码器:
@@ -16,6 +42,7 @@ class SensorEncoder(nn.Module):
         stem_channels: int | None = None,
         stem_dim: int = 64,
         out_dim: int = 128,
+        stem_norm: str = "batch",
     ) -> None:
         super().__init__()
         stem_channels = stem_channels if stem_channels is not None else in_channels
@@ -23,7 +50,7 @@ class SensorEncoder(nn.Module):
         if in_channels != stem_channels:
             self.adapter = nn.Sequential(
                 nn.Conv2d(in_channels, stem_channels, kernel_size=1, bias=False),
-                nn.BatchNorm2d(stem_channels),
+                _norm(stem_channels, stem_norm),
                 nn.GELU(),
             )
         else:
@@ -31,12 +58,12 @@ class SensorEncoder(nn.Module):
 
         self.stem = nn.Sequential(
             nn.Conv2d(stem_channels, stem_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(stem_dim),
+            _norm(stem_dim, stem_norm),
             nn.GELU(),
         )
         self.projection = nn.Sequential(
             nn.Conv2d(stem_dim, out_dim, kernel_size=1),
-            nn.BatchNorm2d(out_dim),
+            _norm(out_dim, stem_norm),
             nn.GELU(),
         )
 
@@ -74,11 +101,13 @@ class SensorEncoderBank(nn.Module):
         out_dim: int,
         source_channels: dict[str, int] | None = None,
         stem_channels: int | None = None,
+        stem_norm: str = "batch",
     ) -> None:
         super().__init__()
         self.input_sources = input_sources
         self.input_dim = input_dim
         self.out_dim = out_dim
+        self.stem_norm = stem_norm
 
         if source_channels is None:
             self.source_channels = {}
@@ -97,6 +126,7 @@ class SensorEncoderBank(nn.Module):
                 stem_channels=stem_channels,
                 stem_dim=stem_dim,
                 out_dim=out_dim,
+                stem_norm=stem_norm,
             )
 
     def forward(

@@ -8,7 +8,13 @@ data:
   manifest_path: data/full_npy/train.jsonl
   stats_dir: data/statistics/yajiang_open
 
+  # Left at 4 on measurement, not inertia. Raising it does NOT buy speed here:
+  # on 8 cards throughput is flat (78.5 / 80.4 / 80.9 patches/s at bs=4/8/12) and
+  # epoch time gets worse (28.1 / 31.1 / 35.3 s); bs=16 OOMs. Step time scales
+  # linearly with batch, i.e. the GPU is already saturated at 4, and the bigger
+  # batches only starve the input pipeline (each item reads 3 x 13 = 39 .npy files).
   batch_size: 4
+
   # 2 is per-rank, so 8 cards run 16 loader workers total -- NOT 8 per card.
   # Measured on 8 cards (loader wait / epoch): nw=8 7.71s/27.0s, nw=4 1.70s/21.0s,
   # nw=2 0.75s/20.1s, nw=1 2.58s/22.4s. There is a real optimum: above it the
@@ -24,6 +30,7 @@ data:
   prefetch_factor: 4
   drop_last: true
   image_size: 128
+
   # All 1708 manifest records hold exactly 13 frames for every source (s2/s1/
   # landsat, verified over the full manifest), so slots 14-16 were always empty:
   # 18.75% of the time-axis compute ran on guaranteed-zero data. Dropping them is

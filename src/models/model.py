@@ -54,6 +54,9 @@ class AEFModel(nn.Module):
             out_dim=m.precision_dim,
             source_channels=getattr(m, "source_channels", None),
             stem_channels=getattr(m, "stem_channels", None),
+            # "batch" reproduces v1.2 and its padding-contaminated statistics;
+            # "group" is the fix. Default stays "batch" so old checkpoints load.
+            stem_norm=getattr(m, "stem_norm", "batch"),
         )
 
         self.time_encoder = TimeCodeEncoder(m.time_code_dim)
@@ -68,6 +71,9 @@ class AEFModel(nn.Module):
                 STPBlock(
                     channels=m.precision_dim,
                     num_heads=m.num_heads,
+                    # Equivalent math, faster at this model's shapes. Off by
+                    # default so v1.2 stays bit-reproducible.
+                    fast_attention=getattr(m, "fast_attention", False),
                 )
                 for _ in range(m.num_blocks)
             ]

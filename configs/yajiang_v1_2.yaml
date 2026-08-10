@@ -14,7 +14,15 @@ data:
   prefetch_factor: 4
   drop_last: true
   image_size: 128
-  max_frames: 16
+  # All 1708 manifest records hold exactly 13 frames for every source (s2/s1/
+  # landsat, verified over the full manifest), so slots 14-16 were always empty:
+  # 18.75% of the time-axis compute ran on guaranteed-zero data. Dropping them is
+  # lossless HERE and worth 1.230x on 8 cards (501.5 -> 407.7 ms/step).
+  # REQUIRES model.stem_norm=group -- under BatchNorm the empty slots enter the
+  # batch statistics, so this same change moves the loss by |dloss| 8.3e-02.
+  # At national scale frame counts vary by region; this must become variable-length
+  # packing rather than a smaller constant.
+  max_frames: 13
   num_samples: 0
 
   metadata_dim: 4
@@ -75,6 +83,15 @@ model:
   # 24.56 GB) -- the memory is the real argument, since it is what lets batch_size
   # grow. Standalone (no compile) it is 1.087x.
   fast_attention: true
+
+  # Fixes BatchNorm statistics being polluted by all-zero padded frame slots
+  # (max_frames sensitivity 8.3e-02 -> 9.5e-07). Speed-neutral on its own
+  # (500.5 vs 501.5 ms on 8 cards, inside the 3.5 ms spread) -- it is enabled
+  # because it is what makes data.max_frames=13 sound, and that is worth 1.230x.
+  # NOT checkpoint-compatible: drops 18 BatchNorm running-stat keys, so weights in
+  # outputs/aef_hyh_yajiang_v1_2/ will not load into this config and runs from here
+  # form a new lineage. Set back to "batch" (with max_frames: 16) to reproduce v1.2.
+  stem_norm: group
 
   vmf_kappa: 2000.0
   skip_l2_training: true

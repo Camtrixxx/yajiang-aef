@@ -9,7 +9,17 @@ data:
   stats_dir: data/statistics/yajiang_open
 
   batch_size: 4
-  num_workers: 8
+  # 2 is per-rank, so 8 cards run 16 loader workers total -- NOT 8 per card.
+  # Measured on 8 cards (loader wait / epoch): nw=8 7.71s/27.0s, nw=4 1.70s/21.0s,
+  # nw=2 0.75s/20.1s, nw=1 2.58s/22.4s. There is a real optimum: above it the
+  # workers contend (64 workers on 64 physical cores made a loader-only pass 9.4x
+  # slower than 1 rank alone) and also starve the main process that issues CUDA
+  # kernels (in-epoch compute 23.14s -> 19.18s); below it one worker cannot keep up.
+  # Rule of thumb here: total workers ~16, i.e. num_workers ~= 16 / nproc_per_node.
+  # Warm-cache result -- the 12.64 GB dataset sits in page cache, so workers only
+  # parallelize CPU transforms. With cold reads (national scale) they must also hide
+  # IO latency and the optimum moves up; re-measure rather than reusing 2.
+  num_workers: 2
   persistent_workers: true
   prefetch_factor: 4
   drop_last: true

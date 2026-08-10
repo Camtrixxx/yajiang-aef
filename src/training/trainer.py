@@ -61,10 +61,25 @@ class Trainer:
                 encoding="utf-8",
             )
 
+    def _unwrap(self):
+        """Strip DDP (.module) and torch.compile (._orig_mod) wrappers.
+
+        Order matters and either may be absent: torch.compile(DDP(m)) nests as
+        _orig_mod -> module -> m. Without this, compiled checkpoints get keys
+        prefixed with `_orig_mod.` and will not load into an uncompiled model.
+        """
+        m = self.model
+        for _ in range(4):
+            if hasattr(m, "_orig_mod"):
+                m = m._orig_mod
+            elif hasattr(m, "module"):
+                m = m.module
+            else:
+                break
+        return m
+
     def _state_dict(self):
-        if hasattr(self.model, "module"):
-            return self.model.module.state_dict()
-        return self.model.state_dict()
+        return self._unwrap().state_dict()
 
     def _log(self, message: str):
         if self.distributed.is_main_process:
@@ -278,8 +293,7 @@ class Trainer:
         ckpt_path = Path(path)
         payload = torch.load(ckpt_path, map_location="cpu")
 
-        model = self.model.module if hasattr(self.model, "module") else self.model
-        model.load_state_dict(payload["model"], strict=True)
+        self._unwrap().load_state_dict(payload["model"], strict=True)
 
         if load_optimizer and "optimizer" in payload:
             self.optimizer.load_state_dict(payload["optimizer"])

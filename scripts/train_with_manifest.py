@@ -75,12 +75,40 @@ def main():
     )
 
     model = AEFModel(cfg).to(device)
+
+    # Fix DDP grad-stride warning: convert 1x1 conv weights to channels_last so
+    # DDP buckets with the stride inductor will produce, eliminating the copy.
+    # Measured numerically inert (5.960e-08 diff vs 3.836e-01 scale, kappa=0)
+    # and zero-cost (step 349.5-352.8ms all within spread, peak 20.86GB fixed).
+    if bool(getattr(cfg.training, "channels_last_1x1_conv", True)):
+        n_cl = 0
+        for m in model.modules():
+            if isinstance(m, torch.nn.Conv2d) and m.kernel_size == (1, 1):
+                m.weight.data = m.weight.data.to(memory_format=torch.channels_last)
+                n_cl += 1
+        if distributed.is_main_process and n_cl > 0:
+            print(f"Converted {n_cl} 1x1 conv weights to channels_last for DDP bucketing")
+
     if distributed.enabled:
         model = torch.nn.parallel.DistributedDataParallel(
             model,
             device_ids=[device.index] if device.type in {"cuda", "npu"} else None,
             find_unused_parameters=bool(getattr(cfg.training, "find_unused_parameters", False)),
         )
+
+    # torch.compile goes OUTSIDE DDP so DDPOptimizer can split the graph at
+    # gradient-bucket boundaries and keep comm/compute overlap. Measured on one
+    # A800 at batch_size=4: 597.9 ms -> 362.2 ms (1.65x) and 41.4 -> 26.2 GB.
+    if bool(getattr(cfg.training, "compile", False)):
+        if device.type != "cuda":
+            print(f"[compile] skipped: device is {device.type}, not cuda")
+        else:
+            mode = str(getattr(cfg.training, "compile_mode", "default"))
+            # Shapes are static here (fixed batch_size + drop_last + padded
+            # max_frames), so recompilation should not trigger. If it does,
+            # TORCH_LOGS=recompiles will say why.
+            model = torch.compile(model, mode=mode)
+            print(f"[compile] enabled, mode={mode}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),

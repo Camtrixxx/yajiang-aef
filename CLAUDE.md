@@ -175,7 +175,29 @@ TF32 matmul/cudnn
 cudnn.benchmark
 DataLoader persistent_workers / prefetch_factor / drop_last
 DDP find_unused_parameters from config
+torch.compile OUTSIDE DDP (so DDPOptimizer keeps comm/compute overlap)
+channels_last on 1x1 conv weights before DDP wraps the model
 ```
+
+### Training acceleration (`docs/experiments/v1.2_training_acceleration.md`)
+
+v1.2 currently runs 1.88x faster per epoch and at -53% peak memory versus the
+original settings. Two of the five changes do NOT transfer to other data or
+hardware and must be re-measured rather than reused:
+
+- `data.max_frames: 13` — true only because all 1708 records hold exactly 13
+  frames. National scale needs variable-length packing.
+- `data.num_workers: 2` — per rank, and a warm-page-cache optimum. Cold reads
+  move it up. Rule of thumb here: total workers ~16.
+
+`model.stem_norm: group` BREAKS CHECKPOINT COMPATIBILITY (drops 18 BatchNorm
+running-stat keys). Weights under `outputs/aef_hyh_yajiang_v1_2/` predate this
+and will not load; set `stem_norm: batch` with `max_frames: 16` to reproduce
+the old lineage.
+
+Use `compile_mode: default` (~85 s first step) while iterating on code, and
+`max-autotune-no-cudagraphs` (~590 s) for real runs. Plain `max-autotune` fails
+under DDP here.
 
 ### Losses (`src/training/losses.py`)
 

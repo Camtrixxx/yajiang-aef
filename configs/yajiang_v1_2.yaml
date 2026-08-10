@@ -68,6 +68,14 @@ model:
 
   num_blocks: 4
   num_heads: 4
+
+  # Mathematically equivalent replacement for nn.MultiheadAttention (verified to
+  # max|diff| 5.1e-07, identical state_dict keys, old checkpoints load strict=True).
+  # On top of compile it buys 1.038x speed but 13.5% less peak memory (28.38 ->
+  # 24.56 GB) -- the memory is the real argument, since it is what lets batch_size
+  # grow. Standalone (no compile) it is 1.087x.
+  fast_attention: true
+
   vmf_kappa: 2000.0
   skip_l2_training: true
   use_time_codes: false

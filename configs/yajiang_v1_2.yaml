@@ -127,6 +127,21 @@ training:
   cudnn_benchmark: true
   find_unused_parameters: false
 
+  # torch.compile. Measured single-GPU 1.651x / -37% peak memory; 2-GPU DDP
+  # 1.393x / -39.7% (all-reduce is not compiled, so its share rises).
+  # First step pays the compilation: ~567 s with max-autotune, ~76 s with
+  # "default". Use "default" while iterating on code or config, max-autotune for
+  # long runs. No per-step recompilation (steady 432-437 ms over steps 1-5).
+  # On 8 cards at the current config: eager 468.8 -> default 409.1 ->
+  # max-autotune-no-cudagraphs 355.3 ms/step, so max-autotune is worth 1.151x over
+  # default for ~500 s more one-time compile (85 s -> 590 s). Use "default" while
+  # iterating on code, this for real runs.
+  # Do NOT use plain "max-autotune": it adds CUDA graphs, which fail under DDP here
+  # (cudaErrorStreamCaptureInvalidated during capture). The -no-cudagraphs variant
+  # is the usable one.
+  compile: true
+  compile_mode: max-autotune-no-cudagraphs
+
   save_epoch_checkpoints: false
   save_every: 0
 
